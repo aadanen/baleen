@@ -1,7 +1,4 @@
-#include <algorithm>
-#include <brilobject.h>
 #include <brilprogram.h>
-#include <iostream>
 
 BrilProgram *curr_program = nullptr;
 

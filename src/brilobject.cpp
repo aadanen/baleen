@@ -2,114 +2,15 @@
 #include <brilprogram.h>
 #include <iostream>
 
-std::map<std::string, BrilType> typetable = {
-    {"int", BRIL_INT},
-    {"bool", BRIL_BOOL},
-};
-
-std::map<BrilType, std::string> typestringtable = {
-    {BRIL_INT, "int"},
-    {BRIL_BOOL, "bool"},
-};
-
-std::map<std::string, BrilOp> optable = {
-    {"nop", BRIL_NOP},       {"add", BRIL_ADD},     {"sub", BRIL_SUB},
-    {"mul", BRIL_MUL},       {"div", BRIL_DIV},     {"eq", BRIL_EQ},
-    {"lt", BRIL_LT},         {"gt", BRIL_GT},       {"le", BRIL_LE},
-    {"ge", BRIL_GE},         {"not", BRIL_NOT},     {"and", BRIL_AND},
-    {"or", BRIL_OR},         {"jmp", BRIL_JMP},     {"br", BRIL_BR},
-    {"call", BRIL_CALL},     {"ret", BRIL_RET},     {"id", BRIL_ID},
-    {"print", BRIL_PRINT},   {"const", BRIL_CONST}, {"alloc", BRIL_ALLOC},
-    {"free", BRIL_FREE},     {"load", BRIL_LOAD},   {"store", BRIL_STORE},
-    {"ptradd", BRIL_PTRADD},
-};
-
-std::map<BrilOp, std::string> opstringtable = {
-    {BRIL_NOP, "nop"},       {BRIL_ADD, "add"},     {BRIL_SUB, "sub"},
-    {BRIL_MUL, "mul"},       {BRIL_DIV, "div"},     {BRIL_EQ, "eq"},
-    {BRIL_LT, "lt"},         {BRIL_GT, "gt"},       {BRIL_LE, "le"},
-    {BRIL_GE, "ge"},         {BRIL_NOT, "not"},     {BRIL_AND, "and"},
-    {BRIL_OR, "or"},         {BRIL_JMP, "jmp"},     {BRIL_BR, "br"},
-    {BRIL_CALL, "call"},     {BRIL_RET, "ret"},     {BRIL_ID, "id"},
-    {BRIL_PRINT, "print"},   {BRIL_CONST, "const"}, {BRIL_ALLOC, "alloc"},
-    {BRIL_FREE, "free"},     {BRIL_LOAD, "load"},   {BRIL_STORE, "store"},
-    {BRIL_PTRADD, "ptradd"},
-};
-
-std::string op2string(BrilOp op) {
-    if (opstringtable.find(op) != opstringtable.end()) {
-        return opstringtable[op];
-    } else {
-        std::cerr << "Error: illegal op2string lookup\n";
-        exit(1);
-    }
-}
-
-BrilOp string2op(const std::string &str) {
-    if (optable.find(str) != optable.end()) {
-        return optable[str];
-    } else {
-        std::cerr << "Error: illegal string2op lookup\n";
-        exit(1);
-    }
-}
-
 void addObject(json data, BrilOp op) {
     int i = curr_program->objects.size();
     curr_program->objects.push_back(BrilObject());
     curr_program->objects[i].init(data, op);
 }
-// TODO: replace table lookups with getters that check args
-// TODO: set instr0, arg0, num_instr, etc...
-BrilObjectType::BrilObjectType() {
-    this->primitive = BRIL_VOID;
-    this->indirection = 0;
-}
-
-BrilType string2type(std::string str) {
-    if (typetable.find(str) == typetable.end()) {
-        std::cerr << "Error: illegal string2type lookup\n";
-        exit(1);
-    }
-    return typetable[str];
-}
-std::string type2string(BrilType type) {
-    if (typestringtable.find(type) == typestringtable.end()) {
-        std::cerr << "Error: illegal type2string lookup\n";
-        exit(1);
-    }
-    return typestringtable[type];
-}
-void parseBrilObjectType(BrilObjectType *ptr2type, json data) {
-    if (data.is_null() || !data.contains("type")) {
-        ptr2type->primitive = BRIL_VOID;
-        ptr2type->indirection = 0;
-        return;
-    }
-
-    int count = 0;
-    data = data["type"];
-    while (!data.is_string()) {
-        data = data["ptr"];
-        count++;
-    }
-    ptr2type->primitive = string2type(std::string(data));
-    ptr2type->indirection = count;
-}
-
-json BrilObjectType::dump2json() {
-    json result = type2string(this->primitive);
-    for (int i = this->indirection; i > 0; i--) {
-        json tmp;
-        tmp["ptr"] = result;
-        result = tmp;
-    }
-    return result;
-}
 
 BrilObject::BrilObject() {
     this->op = BRIL_NONE;
-    this->type = BrilObjectType();
+    this->type = BrilType();
     this->name = 0;
     this->arg0 = 0;
     this->num_args = 0;
@@ -122,7 +23,7 @@ BrilObject::BrilObject() {
 
 int BrilObject::init(json data, BrilOp op) {
     this->op = BRIL_NONE;
-    this->type = BrilObjectType();
+    this->type = BrilType();
     this->name = 0;
     this->arg0 = 0;
     this->num_args = 0;
@@ -146,7 +47,7 @@ int BrilObject::init(json data, BrilOp op) {
         self->op = BRIL_FUNC;
         self->name = curr_program->stringtable.lookup(data["name"]);
 
-        parseBrilObjectType(&self->type, data);
+        parseBrilType(&self->type, data);
 
         if (data.contains("args") && !data["args"].empty()) {
             self->arg0 = curr_program->objects.size();
@@ -173,7 +74,7 @@ int BrilObject::init(json data, BrilOp op) {
          {"name": "<string>", "type": <Type>}
         */
         self->op = BRIL_ARG;
-        parseBrilObjectType(&self->type, data);
+        parseBrilType(&self->type, data);
         self->name = curr_program->stringtable.lookup(data["name"]);
         break;
     case (BRIL_LABEL):
@@ -185,7 +86,7 @@ int BrilObject::init(json data, BrilOp op) {
          "string"
         */
         self->op = BRIL_STR;
-        parseBrilObjectType(&self->type, data);
+        parseBrilType(&self->type, data);
         self->name = curr_program->stringtable.lookup(data);
         break;
     default:
@@ -193,7 +94,7 @@ int BrilObject::init(json data, BrilOp op) {
         if (data.contains("dest"))
             self->dest = curr_program->stringtable.lookup(data["dest"]);
         if (data.contains("type"))
-            parseBrilObjectType(&self->type, data);
+            parseBrilType(&self->type, data);
         if (data.contains("args") && !data["args"].empty()) {
             self->arg0 = curr_program->objects.size();
             for (json arg : data["args"]) {

@@ -9,6 +9,9 @@ target_sources(baleen
     src/brilprogram.cpp
     src/brilobject.cpp
     src/stringtable.cpp
+    src/brilop.cpp
+    src/brilprimitive.cpp
+    src/briltype.cpp
   PUBLIC
     FILE_SET HEADERS
     TYPE HEADERS
@@ -16,6 +19,9 @@ target_sources(baleen
     FILES
       include/brilprogram.h
       include/brilobject.h
+      include/brilop.h
+      include/brilprimitive.h
+      include/briltype.h
       include/stringtable.h
   )
 

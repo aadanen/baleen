@@ -2,7 +2,6 @@
 #define BRIL_PROGRAM_H_
 
 #include <brilobject.h>
-#include <json.hpp>
 #include <stringtable.h>
 #include <vector>
 
