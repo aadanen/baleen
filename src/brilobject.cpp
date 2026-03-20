@@ -12,26 +12,15 @@ BrilObject::BrilObject() {
     this->op = BRIL_NONE;
     this->type = BrilType();
     this->name = 0;
-    this->arg0 = 0;
     this->num_args = 0;
-    this->instr0 = 0;
+    this->arg0 = 0;
+    this->arg1 = 0;
+    this->arg2 = 0;
     this->num_instrs = 0;
-    this->label0 = 0;
-    this->num_labels = 0;
     this->value = 0;
 }
 
 int BrilObject::init(json data, BrilOp op) {
-    this->op = BRIL_NONE;
-    this->type = BrilType();
-    this->name = 0;
-    this->arg0 = 0;
-    this->num_args = 0;
-    this->instr0 = 0;
-    this->num_instrs = 0;
-    this->label0 = 0;
-    this->num_labels = 0;
-    this->value = 0;
     int self_index = curr_program->objects.size() - 1;
     BrilObject *self = &(curr_program->objects[self_index]);
     switch (op) {
@@ -49,15 +38,14 @@ int BrilObject::init(json data, BrilOp op) {
 
         parseBrilType(&self->type, data);
 
+        self->arg0 = curr_program->objects.size();
         if (data.contains("args") && !data["args"].empty()) {
-            self->arg0 = curr_program->objects.size();
             for (json arg : data["args"]) {
                 addObject(arg, BRIL_ARG);
                 self = &curr_program->objects[self_index];
                 self->num_args++;
             }
         }
-        self->instr0 = curr_program->objects.size();
         for (json instr : data["instrs"]) {
             if (instr.contains("label")) {
                 addObject(instr, BRIL_LABEL);
@@ -80,14 +68,7 @@ int BrilObject::init(json data, BrilOp op) {
     case (BRIL_LABEL):
         self->op = BRIL_LABEL;
         self->name = curr_program->stringtable.lookup(data["label"]);
-        break;
-    case (BRIL_STR):
-        /*
-         "string"
-        */
-        self->op = BRIL_STR;
-        parseBrilType(&self->type, data);
-        self->name = curr_program->stringtable.lookup(data);
+        self->num_args = 1;
         break;
     default:
         self->op = string2op(data["op"]);
@@ -95,43 +76,96 @@ int BrilObject::init(json data, BrilOp op) {
             self->dest = curr_program->stringtable.lookup(data["dest"]);
         if (data.contains("type"))
             parseBrilType(&self->type, data);
-        if (data.contains("args") && !data["args"].empty()) {
-            self->arg0 = curr_program->objects.size();
-            for (json arg : data["args"]) {
-                addObject(arg, BRIL_STR);
-                self = &curr_program->objects[self_index];
-                self->num_args++;
-            }
-        }
-        if (data.contains("funcs") && !data["funcs"].empty()) {
-            self->func0 = curr_program->objects.size();
-            for (json func : data["funcs"]) {
-                addObject(func, BRIL_STR);
-                self = &curr_program->objects[self_index];
-                self->num_funcs++;
-            }
-        }
-        if (data.contains("labels") && !data["labels"].empty()) {
-            self->label0 = curr_program->objects.size();
-            for (json label : data["labels"]) {
-                addObject(label, BRIL_STR);
-                self = &curr_program->objects[self_index];
-                self->num_labels++;
-            }
-        }
         if (data.contains("value")) {
             self->value = data["value"];
         }
+
+        // extract arguments
+        // call instruction args get put in the var_args array
+        int *p;
+        int i;
+        switch (self->op) {
+        case (BRIL_CALL):
+            if (data.contains("args") && !data["args"].empty()) {
+                self->num_args = data["args"].size();
+                self->arg0 = curr_program->var_args.size();
+                for (json arg : data["args"]) {
+                    curr_program->var_args.push_back(
+                        curr_program->stringtable.lookup(arg));
+                }
+            }
+            if (data["funcs"].size() > 1) {
+                std::cerr << "Error: more than 1 func in call??\n";
+                exit(1);
+            }
+            for (json f : data["funcs"]) {
+                self->func = curr_program->stringtable.lookup(f);
+            }
+            break;
+        case (BRIL_BR):
+            self->num_args = 3;
+            p = &self->arg0;
+            i = 0;
+            if (data["args"].size() > 1) {
+                std::cerr << "Error: more than 1 arg in br??\n";
+                exit(1);
+            }
+            for (json cond_var : data["args"]) {
+                p[i++] = curr_program->stringtable.lookup(cond_var);
+            }
+            if (data["labels"].size() > 2) {
+                std::cerr << "Error: more than 2 labels in br??\n";
+                exit(1);
+            }
+            for (json branch : data["labels"]) {
+                p[i++] = curr_program->stringtable.lookup(branch);
+            }
+            break;
+        case (BRIL_JMP):
+            self->num_args = 1;
+            if (data["labels"].size() > 1) {
+                std::cerr << "Error: more than 1 label in jmp??\n";
+                exit(1);
+            }
+            for (json branch : data["labels"]) {
+                self->arg0 = curr_program->stringtable.lookup(branch);
+            }
+            break;
+        default:
+            p = &self->arg0;
+            i = 0;
+            if (data["args"].size() > 2) {
+                std::cerr << "Error: more than 2 args in operation??\n";
+                exit(1);
+            }
+            for (json arg : data["args"]) {
+                p[i++] = curr_program->stringtable.lookup(arg);
+                self->num_args++;
+            }
+            break;
+        };
         break;
     };
     return 0;
 }
 
-std::vector<json> serializeArray(int start, int n) {
+// make a vector<json> out of a functions args
+std::vector<json> serializeFuncArgs(int start, int n) {
     std::vector<json> result;
     result.reserve(n);
     for (int i = 0; i < n; i++) {
         result.push_back(curr_program->objects[start + i].dump2json());
+    }
+    return result;
+}
+
+// make a vector<string> out of a calls var_args
+std::vector<json> serializeInstrVargs(int start, int n) {
+    std::vector<json> result;
+    result.reserve(n);
+    for (int i = 0; i < n; i++) {
+        result.push_back(curr_program->stringtable.getString(
+            curr_program->var_args[start + i]));
     }
     return result;
 }
@@ -150,21 +184,18 @@ json BrilObject::dump2json() {
          "instrs": [<Instruction>, ...]
         }
         */
-        result["name"] = curr_program->stringtable.getString(this->name);
+        result["name"] = curr_program->stringtable.getString(name);
 
-        if (this->type.primitive) {
-            result["type"] = this->type.dump2json();
+        if (type.primitive) {
+            result["type"] = type.dump2json();
         }
 
-        if (this->num_args > 0)
-            result["args"] = serializeArray(this->arg0, this->num_args);
+        if (num_args > 0)
+            result["args"] = serializeFuncArgs(arg0, num_args);
 
-        instrs_vec.reserve(this->num_instrs);
-        index = 0;
-        for (int i = 0; i < this->num_instrs; i++) {
-            instrs_vec.push_back(
-                curr_program->objects[instr0 + index].dump2json());
-            index += curr_program->objects[instr0 + index].offset();
+        instrs_vec.reserve(num_instrs);
+        for (int i = arg0 + num_args; i < arg0 + num_args + num_instrs; i++) {
+            instrs_vec.push_back(curr_program->objects[i].dump2json());
         }
         result["instrs"] = instrs_vec;
         return result;
@@ -173,87 +204,89 @@ json BrilObject::dump2json() {
         /*
          {"name": "<string>", "type": <Type>}
         */
-        result["name"] = curr_program->stringtable.getString(this->name);
-        result["type"] = this->type.dump2json();
+        result["name"] = curr_program->stringtable.getString(name);
+        result["type"] = type.dump2json();
         return result;
         break;
     case (BRIL_LABEL):
         // { "label": "<string>" }
-        result["label"] = curr_program->stringtable.getString(this->name);
-        return result;
-        break;
-    case (BRIL_STR):
-        /*
-         "string"
-        */
-        result = curr_program->stringtable.getString(this->name);
+        result["label"] = curr_program->stringtable.getString(name);
         return result;
         break;
     default:
-        result["op"] = op2string(this->op);
-        if (this->type.primitive != BRIL_VOID) {
-            result["type"] = this->type.dump2json();
+        result["op"] = op2string(op);
+        if (type.primitive != BRIL_VOID) {
+            result["type"] = type.dump2json();
         }
-        if (this->dest)
-            result["dest"] = curr_program->stringtable.getString(this->dest);
-
-        // TODO here unmarshall instruction arguments
-        if (this->arg0) {
-            result["args"] = serializeArray(this->arg0, this->num_args);
-        }
-
-        if (this->func0) {
-            result["funcs"] = serializeArray(this->func0, this->num_funcs);
-        }
-
-        if (this->label0) {
-            result["labels"] = serializeArray(this->label0, this->num_labels);
-        }
-
-        if (this->op == BRIL_CONST) {
-            if (this->type.primitive == BRIL_BOOL)
-                result["value"] = (bool)this->value;
+        if (dest)
+            result["dest"] = curr_program->stringtable.getString(dest);
+        if (op == BRIL_CONST) {
+            if (type.primitive == BRIL_BOOL)
+                result["value"] = (bool)value;
             else
-                result["value"] = this->value;
+                result["value"] = value;
         }
+        std::vector<json> args;
+        std::vector<json> labels;
+        std::vector<json> funcs;
+        int *p;
+        switch (op) {
+        case (BRIL_CALL):
+            if (num_args) {
+                result["args"] = serializeInstrVargs(arg0, num_args);
+            }
+            funcs.push_back(curr_program->stringtable.getString(func));
+            result["funcs"] = funcs;
+            break;
+        case (BRIL_BR):
+            args.push_back(curr_program->stringtable.getString(arg0));
+            labels.push_back(curr_program->stringtable.getString(arg1));
+            labels.push_back(curr_program->stringtable.getString(arg2));
+            result["args"] = args;
+            result["labels"] = labels;
+            break;
+        case (BRIL_JMP):
+            labels.push_back(curr_program->stringtable.getString(arg0));
+            result["labels"] = labels;
+            break;
+        default:
+            p = &arg0;
+            for (int i = 0; i < num_args; i++) {
+                args.push_back(curr_program->stringtable.getString(p[i]));
+            }
+            if (num_args > 0) {
+                result["args"] = args;
+            }
+            break;
+        };
         return result;
         break;
     };
 }
 
-// what if the args have args
-int BrilObject::offset() {
-    if (this->op == BRIL_FUNC) {
-        int instrs_width = 0;
-        int index = 0;
-        for (int i = 0; i < num_instrs; i++) {
-            instrs_width += curr_program->objects[instr0 + index].offset();
-        }
-        return num_args + instrs_width + 1;
+int BrilObject::width() {
+    if (op == BRIL_FUNC) {
+        return num_args + num_instrs + 1;
     } else {
-        return num_args + num_funcs + num_labels + 1;
+        return 1;
     }
 }
 
 bool BrilObject::isterminator() {
-    return (this->op == BRIL_JMP || this->op == BRIL_BR ||
-            this->op == BRIL_RET);
+    return (op == BRIL_JMP || op == BRIL_BR || op == BRIL_RET);
 }
-bool BrilObject::islabel() { return this->op == BRIL_LABEL; }
-bool BrilObject::isfunc() { return this->op == BRIL_FUNC; }
+bool BrilObject::islabel() { return op == BRIL_LABEL; }
+bool BrilObject::isfunc() { return op == BRIL_FUNC; }
 
 void BrilObject::print() {
-    std::cout << "op: " << op2string(this->op) << '\n';
-    std::cout << "type: " << "{" << this->type.primitive << ", "
-              << this->type.indirection << "}" << '\n';
-    std::cout << "name: " << curr_program->stringtable.getString(this->name)
-              << '\n';
-    std::cout << "arg0: " << this->arg0 << '\n';
-    std::cout << "num_args: " << this->num_args << '\n';
-    std::cout << "instr0/func0: " << this->instr0 << '\n';
-    std::cout << "num_instrs/num_funcs: " << this->num_instrs << '\n';
-    std::cout << "label0: " << this->label0 << '\n';
-    std::cout << "num_labels: " << this->num_labels << '\n';
-    std::cout << "value: " << this->value << '\n';
+    std::cout << "op: " << op2string(op) << '\n';
+    std::cout << "type: " << "{" << type.primitive << ", " << type.indirection
+              << "}" << '\n';
+    std::cout << "name: " << curr_program->stringtable.getString(name) << '\n';
+    std::cout << "num_args: " << num_args << '\n';
+    std::cout << "arg0: " << arg0 << '\n';
+    std::cout << "arg1: " << arg1 << '\n';
+    std::cout << "arg2: " << arg2 << '\n';
+    std::cout << "num_instrs: " << num_instrs << '\n';
     std::cout << '\n';
 }

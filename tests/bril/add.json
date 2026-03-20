@@ -8,8 +8,7 @@
         { "op": "add", "type": "int", "dest": "v2",
           "args": ["v0", "v1"] },
         { "op": "print", "args": ["v2"] }
-      ],
-      "args": []
+      ]
     }
   ]
 }

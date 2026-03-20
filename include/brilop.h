@@ -35,7 +35,6 @@ enum BrilOp {
     BRIL_LABEL,
     BRIL_FUNC,
     BRIL_ARG,
-    BRIL_STR,
 };
 
 std::string op2string(BrilOp op);

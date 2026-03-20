@@ -14,7 +14,12 @@ BrilProgram::BrilProgram(json program) {
     curr_program->objects.push_back(BrilObject());
     curr_program->objects[i].init(func, BRIL_FUNC);
   }
-  std::cout << hasDeadCode() << '\n';
+
+  for (int i = 1; i < objects.size(); i++) {
+    objects[i].print();
+  }
+
+  // std::cout << hasDeadCode() << '\n';
   curr_program = nullptr;
 }
 
@@ -33,14 +38,14 @@ json BrilProgram::dump2json() {
   return result;
 };
 
+/*
 int BrilProgram::getBlocks() {
   curr_program = this;
   int bname = 0;
   int bstart = 0;
   int blength = 0;
   for (int index = 1; index < objects.size(); index++) {
-    if (this->objects[index].op == BRIL_ARG ||
-        this->objects[index].op == BRIL_STR)
+    if (this->objects[index].op == BRIL_ARG)
       continue;
 
     if (this->objects[index].isfunc() || this->objects[index].islabel()) {
@@ -140,3 +145,4 @@ bool BrilProgram::hasDeadCode() {
   }
   return false;
 }
+*/

@@ -10,7 +10,6 @@
     },
     {
       "name": "main",
-      "args": [],
       "instrs": [
         { "op": "const", "type": "int", "dest": "a", "value": 9 },
         { "op": "alloc", "type": {"ptr": "int"}, "args": ["a"], "dest": "b" },

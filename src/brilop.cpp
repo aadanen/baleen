@@ -10,7 +10,8 @@ std::map<std::string, BrilOp> optable = {
     {"call", BRIL_CALL},     {"ret", BRIL_RET},     {"id", BRIL_ID},
     {"print", BRIL_PRINT},   {"const", BRIL_CONST}, {"alloc", BRIL_ALLOC},
     {"free", BRIL_FREE},     {"load", BRIL_LOAD},   {"store", BRIL_STORE},
-    {"ptradd", BRIL_PTRADD},
+    {"ptradd", BRIL_PTRADD}, {"func", BRIL_FUNC},   {"arg", BRIL_ARG},
+    {"label", BRIL_LABEL},
 };
 
 std::map<BrilOp, std::string> opstringtable = {
@@ -22,7 +23,8 @@ std::map<BrilOp, std::string> opstringtable = {
     {BRIL_CALL, "call"},     {BRIL_RET, "ret"},     {BRIL_ID, "id"},
     {BRIL_PRINT, "print"},   {BRIL_CONST, "const"}, {BRIL_ALLOC, "alloc"},
     {BRIL_FREE, "free"},     {BRIL_LOAD, "load"},   {BRIL_STORE, "store"},
-    {BRIL_PTRADD, "ptradd"},
+    {BRIL_PTRADD, "ptradd"}, {BRIL_FUNC, "func"},   {BRIL_ARG, "arg"},
+    {BRIL_LABEL, "label"},
 };
 
 std::string op2string(BrilOp op) {

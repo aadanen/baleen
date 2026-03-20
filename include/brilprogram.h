@@ -10,6 +10,7 @@ struct BrilProgram {
 public:
   StringTable stringtable;
   std::vector<BrilObject> objects;
+  std::vector<int> var_args;
   std::vector<BrilBasicBlock> blocks;
   std::vector<std::vector<int>> cfg;
   BrilProgram(json program);

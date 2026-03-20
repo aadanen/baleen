@@ -13,7 +13,6 @@
     },
     {
       "name": "main",
-      "args": [],
       "instrs": [
         { "op": "const", "type": "int", "dest": "a", "value": 9 },
         { "op": "call", "type": "int", "dest": "b",

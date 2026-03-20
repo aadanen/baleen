@@ -16,21 +16,19 @@ struct BrilObject {
         int name; // location in stringtab
         int dest;
     };
-    int arg0;
     int num_args;
     union {
-        int instr0;
-        int func0;
+        int arg0;
+        int value;
     };
     union {
-        int num_instrs;
-        int num_funcs;
+        int arg1;
+        int func;
     };
-    int label0;
-    int num_labels;
-    int value;
+    int arg2;
+    int num_instrs;
 
-    int offset();
+    int width();
 
     BrilObject();
 

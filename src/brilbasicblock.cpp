@@ -11,10 +11,8 @@ BrilBasicBlock::BrilBasicBlock(int name, int start, int length)
 void BrilBasicBlock::print() {
     std::cout << "===\t" << curr_program->stringtable.getString(name)
               << "\t===\n";
-    int index = start;
-    for (int i = 0; i < length; i++) {
-        curr_program->objects[index].print();
-        index += curr_program->objects[index].offset();
+    for (int i = start; i < start + length; i++) {
+        curr_program->objects[i].print();
     }
     std::cout << "===\t\t\t===\n";
 }
