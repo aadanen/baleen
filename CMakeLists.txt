@@ -12,6 +12,7 @@ target_sources(baleen
     src/brilop.cpp
     src/brilprimitive.cpp
     src/briltype.cpp
+    src/brilbasicblock.cpp
   PUBLIC
     FILE_SET HEADERS
     TYPE HEADERS
@@ -22,6 +23,7 @@ target_sources(baleen
       include/brilop.h
       include/brilprimitive.h
       include/briltype.h
+      include/brilbasicblock.h
       include/stringtable.h
   )
 
@@ -38,6 +40,8 @@ BRILTEST(add)
 BRILTEST(call)
 BRILTEST(eight-queens)
 BRILTEST(ptr)
+BRILTEST(br)
+BRILTEST(dead_block)
 
 add_executable(stringtable_tester tests/stringtable_tester.cpp)
 target_link_libraries(stringtable_tester baleen)

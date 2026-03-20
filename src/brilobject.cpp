@@ -156,7 +156,8 @@ json BrilObject::dump2json() {
             result["type"] = this->type.dump2json();
         }
 
-        result["args"] = serializeArray(this->arg0, this->num_args);
+        if (this->num_args > 0)
+            result["args"] = serializeArray(this->arg0, this->num_args);
 
         instrs_vec.reserve(this->num_instrs);
         index = 0;
@@ -210,7 +211,10 @@ json BrilObject::dump2json() {
         }
 
         if (this->op == BRIL_CONST) {
-            result["value"] = this->value;
+            if (this->type.primitive == BRIL_BOOL)
+                result["value"] = (bool)this->value;
+            else
+                result["value"] = this->value;
         }
         return result;
         break;
@@ -220,11 +224,23 @@ json BrilObject::dump2json() {
 // what if the args have args
 int BrilObject::offset() {
     if (this->op == BRIL_FUNC) {
-        return num_args + num_instrs + 1;
+        int instrs_width = 0;
+        int index = 0;
+        for (int i = 0; i < num_instrs; i++) {
+            instrs_width += curr_program->objects[instr0 + index].offset();
+        }
+        return num_args + instrs_width + 1;
     } else {
         return num_args + num_funcs + num_labels + 1;
     }
 }
+
+bool BrilObject::isterminator() {
+    return (this->op == BRIL_JMP || this->op == BRIL_BR ||
+            this->op == BRIL_RET);
+}
+bool BrilObject::islabel() { return this->op == BRIL_LABEL; }
+bool BrilObject::isfunc() { return this->op == BRIL_FUNC; }
 
 void BrilObject::print() {
     std::cout << "op: " << op2string(this->op) << '\n';

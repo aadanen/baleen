@@ -1,15 +1,25 @@
 #ifndef BRIL_PROGRAM_H_
 #define BRIL_PROGRAM_H_
 
+#include <brilbasicblock.h>
 #include <brilobject.h>
 #include <stringtable.h>
 #include <vector>
 
 struct BrilProgram {
-    StringTable stringtable;
-    std::vector<BrilObject> objects;
-    BrilProgram(json program);
-    json dump2json();
+public:
+  StringTable stringtable;
+  std::vector<BrilObject> objects;
+  std::vector<BrilBasicBlock> blocks;
+  std::vector<std::vector<int>> cfg;
+  BrilProgram(json program);
+  json dump2json();
+
+private:
+  std::map<int, int> blocktable; // map stringtable entry to block index
+  int getBlocks();
+  int getCFG();
+  bool hasDeadCode();
 };
 
 extern BrilProgram *curr_program;

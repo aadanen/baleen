@@ -6,13 +6,14 @@
 #include <vector>
 
 class StringTable {
-  private:
-    std::vector<std::string> strings;
-    std::map<std::string, int> entries;
+private:
+  std::vector<std::string> strings;
+  std::map<std::string, int> entries;
 
-  public:
-    const std::string &getString(int);
-    int lookup(const std::string &str);
+public:
+  const std::string &getString(int);
+  int lookup(const std::string &str);
+  StringTable();
 };
 
 #endif /* STRING_TABLE_H_ */

@@ -38,6 +38,9 @@ struct BrilObject {
 
     json dump2json();
     void print();
+    bool islabel();
+    bool isterminator();
+    bool isfunc();
 };
 
 #endif /* BRIL_OBJECT_H_ */

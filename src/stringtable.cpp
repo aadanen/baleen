@@ -1,5 +1,7 @@
 #include <stringtable.h>
 
+StringTable::StringTable() { this->strings.push_back("dummy"); }
+
 // O(1) lookup
 const std::string &StringTable::getString(int i) {
     if (i < 0 || i > (int)this->strings.size()) {
