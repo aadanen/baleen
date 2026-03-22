@@ -280,8 +280,7 @@ bool BrilObject::isfunc() { return op == BRIL_FUNC; }
 
 void BrilObject::print() {
     std::cout << "op: " << op2string(op) << '\n';
-    std::cout << "type: " << "{" << type.primitive << ", " << type.indirection
-              << "}" << '\n';
+    std::cout << "type: " << type2string(type) << '\n';
     std::cout << "name: " << curr_program->stringtable.getString(name) << '\n';
     std::cout << "num_args: " << num_args << '\n';
     std::cout << "arg0: " << arg0 << '\n';

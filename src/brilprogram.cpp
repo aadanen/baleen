@@ -15,11 +15,9 @@ BrilProgram::BrilProgram(json program) {
     curr_program->objects[i].init(func, BRIL_FUNC);
   }
 
-  for (int i = 1; i < objects.size(); i++) {
-    objects[i].print();
+  if (hasDeadCode()) {
+    std::cout << "DEAD CODE!!!\n";
   }
-
-  // std::cout << hasDeadCode() << '\n';
   curr_program = nullptr;
 }
 
@@ -38,7 +36,6 @@ json BrilProgram::dump2json() {
   return result;
 };
 
-/*
 int BrilProgram::getBlocks() {
   curr_program = this;
   int bname = 0;
@@ -56,7 +53,7 @@ int BrilProgram::getBlocks() {
       bname = this->objects[index].name;
       this->blocktable[bname] = this->blocks.size();
       if (this->objects[index].isfunc())
-        bstart = this->objects[index].instr0; // what if a func has 0 inst?
+        bstart = this->objects[index].arg0 + this->objects[index].num_args;
       else
         bstart = index + 1;
       blength = 0;
@@ -87,18 +84,14 @@ int BrilProgram::getCFG() {
   cfg = std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
   for (int i = 0; i < blocks.size(); i++) {
     // get the last instruction;
-    int last_instr = blocks[i].start;
-    for (int j = 0; j < blocks[i].length - 1; j++) {
-      last_instr += objects[last_instr].offset();
-    }
+    int last_instr = blocks[i].start + blocks[i].length - 1;
     if (objects[last_instr].isterminator()) {
       if (objects[last_instr].op == BRIL_JMP) {
-        cfg[i].push_back(blocktable[objects[objects[last_instr].label0].name]);
+        cfg[i].push_back(blocktable[objects[last_instr].arg0]);
       } else if (objects[last_instr].op == BRIL_BR) {
-        cfg[i].push_back(blocktable[objects[objects[last_instr].label0].name]);
-        cfg[i].push_back(
-            blocktable[objects[objects[last_instr].label0 + 1].name]);
-      } // else its a ret instruction and so control goes to caller
+        cfg[i].push_back(blocktable[objects[last_instr].arg1]);
+        cfg[i].push_back(blocktable[objects[last_instr].arg2]);
+      } // else its a ret instruction and so control goes to some caller
     } else {
       if (last_instr + 1 < objects.size() &&
           objects[last_instr + 1].op == BRIL_LABEL) {
@@ -109,10 +102,8 @@ int BrilProgram::getCFG() {
 
   int counter = 0;
   for (std::vector<int> &row : cfg) {
-    // std::cout << stringtable.getString(blocks[counter].name) << ": [";
     std::cout << counter << ": [";
     for (int &item : row) {
-      // std::cout << " " << stringtable.getString(blocks[item].name) << " ";
       std::cout << " " << item << " ";
     }
     std::cout << "]\n";
@@ -125,24 +116,27 @@ bool BrilProgram::hasDeadCode() {
   if (cfg.empty())
     getCFG();
 
-  // main is always alive
-  for (BrilBasicBlock &b : blocks) {
-    if (stringtable.getString(b.name) == "main") {
-      b.flags |= IS_ALIVE;
-    }
-  }
+  // this bit assumes dead until proven alive so imma just mark them with
+  // BRIL_DEAD but then flip them all over so the logic works
 
   // other blocks are alive if they can be transitioned into
+  std::vector<bool> alive(blocks.size(), false);
   for (std::vector<int> &node : cfg) {
     for (int w : node) {
-      blocks[w].flags |= IS_ALIVE;
+      alive[w] = true;
     }
   }
 
-  for (BrilBasicBlock &b : blocks) {
-    if (!(b.flags & IS_ALIVE))
-      return true;
+  bool result = false;
+  for (int i = 0; i < blocks.size(); i++) {
+    // main is always alive
+    if (stringtable.getString(blocks[i].name) == "main") {
+      alive[i] = true;
+    }
+    if (!alive[i]) {
+      blocks[i].flags |= BRIL_DEAD;
+      result = true;
+    }
   }
-  return false;
+  return result;
 }
-*/

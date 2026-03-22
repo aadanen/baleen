@@ -1,10 +1,6 @@
 #ifndef BRIL_BASIC_BLOCK_H_
 #define BRIL_BASIC_BLOCK_H_
 
-enum BrilBlockFlags {
-    IS_ALIVE = 0x1,
-};
-
 struct BrilBasicBlock {
     int name;   // index into the stringtable
     int start;  // index of first instruction in objects

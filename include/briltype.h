@@ -14,5 +14,6 @@ struct BrilType {
 };
 
 void parseBrilType(BrilType *ptr2type, json data);
+std::string type2string(BrilType type);
 
 #endif /* BRIL_TYPE_H_ */

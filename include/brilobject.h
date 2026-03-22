@@ -9,9 +9,14 @@
 
 using json = nlohmann::json;
 
+enum BrilFlags {
+    BRIL_DEAD = 0x1,
+};
+
 struct BrilObject {
     BrilOp op;
     BrilType type;
+    int flags;
     union {
         int name; // location in stringtab
         int dest;

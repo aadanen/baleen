@@ -3,11 +3,13 @@
 #include <map>
 
 std::map<std::string, BrilPrimitive> primtable = {
+    {"void", BRIL_VOID},
     {"int", BRIL_INT},
     {"bool", BRIL_BOOL},
 };
 
 std::map<BrilPrimitive, std::string> primstringtable = {
+    {BRIL_VOID, "void"},
     {BRIL_INT, "int"},
     {BRIL_BOOL, "bool"},
 };
