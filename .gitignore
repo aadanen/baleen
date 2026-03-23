@@ -1,1 +1,6 @@
 build
+.vs
+*.opt
+CMakeSettings.json
+*.swp
+*.swo

@@ -20,7 +20,8 @@ private:
   std::map<int, int> blocktable; // map stringtable entry to block index
   int getBlocks();
   int getCFG();
-  bool hasDeadCode();
+  int numDeadBlocks();
+  int eliminateDeadCode();
 };
 
 extern BrilProgram *curr_program;

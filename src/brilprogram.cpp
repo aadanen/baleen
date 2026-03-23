@@ -15,9 +15,6 @@ BrilProgram::BrilProgram(json program) {
     curr_program->objects[i].init(func, BRIL_FUNC);
   }
 
-  if (hasDeadCode()) {
-    std::cout << "DEAD CODE!!!\n";
-  }
   curr_program = nullptr;
 }
 
@@ -112,7 +109,7 @@ int BrilProgram::getCFG() {
   return 0;
 }
 
-bool BrilProgram::hasDeadCode() {
+int BrilProgram::numDeadBlocks() {
   if (cfg.empty())
     getCFG();
 
@@ -121,13 +118,16 @@ bool BrilProgram::hasDeadCode() {
 
   // other blocks are alive if they can be transitioned into
   std::vector<bool> alive(blocks.size(), false);
-  for (std::vector<int> &node : cfg) {
-    for (int w : node) {
-      alive[w] = true;
+  for (int i = 0; i < cfg.size(); i++) {
+    // dead blocks can't make subsequent blocks alive
+    if (!(blocks[i].flags & BRIL_DEAD)) {
+      for (int j = 0; j < cfg[i].size(); j++) {
+        alive[cfg[i][j]] = true;
+      }
     }
   }
 
-  bool result = false;
+  int counter = 0;
   for (int i = 0; i < blocks.size(); i++) {
     // main is always alive
     if (stringtable.getString(blocks[i].name) == "main") {
@@ -135,8 +135,66 @@ bool BrilProgram::hasDeadCode() {
     }
     if (!alive[i]) {
       blocks[i].flags |= BRIL_DEAD;
-      result = true;
+      counter++;
     }
   }
-  return result;
+  return counter;
+}
+
+// maybe i want to markDeadCode and then separately eliminate dead code?
+// i feel like i need to see more optimizations before i can reason about a
+// general interface for compiler optimizations
+int BrilProgram::eliminateDeadCode() {
+  int prev_dead_code = -1;
+  int total_dead_code = 0;
+  int tmp = 0;
+  while (prev_dead_code != total_dead_code) {
+    prev_dead_code = total_dead_code;
+    while ((tmp = numDeadBlocks()) > 0) {
+      total_dead_code += tmp;
+    }
+    // if block[i] is dead, mark all the instructions in block[i] as dead
+    for (BrilBasicBlock b : blocks) {
+      if (b.flags & BRIL_DEAD) {
+        for (int i = b.start; i < b.start + b.length; i++) {
+          objects[i].flags |= BRIL_DEAD;
+        }
+      }
+    }
+  }
+
+
+  // make a new objects array without the dead instructions
+  // update functions with their new number of instructions
+  std::vector<BrilObject> new_objects;
+  new_objects.emplace_back(); // 1 indexing
+  int old_func_idx = 1;
+  int new_func_idx = 1;
+  while (old_func_idx < objects.size()) {
+    // copy function object
+    new_objects.push_back(objects[old_func_idx]);
+    
+    // copy function arguments
+    for (int i = old_func_idx + 1; i < objects[old_func_idx].num_args; i++) {
+      new_objects.push_back(objects[i]);
+    }
+
+    // copy alive instructions and decrement num_instrs by num dead instrs
+    for (int i = (objects[old_func_idx].arg0 + objects[old_func_idx].num_args);
+        i < objects[old_func_idx].num_instrs;
+        i++) {
+      if (objects[i].flags & BRIL_DEAD) {
+        new_objects[old_func_idx].num_instrs--;
+      } else {
+        new_objects.push_back(objects[i]); 
+      }
+    }
+
+    old_func_idx += objects[old_func_idx].num_args + objects[old_func_idx].num_instrs + 1;
+    new_func_idx += new_objects[new_func_idx].num_args + new_objects[new_func_idx].num_instrs + 1;
+  }
+  objects = new_objects;
+  blocks.clear();
+  cfg.clear();
+  return 0;
 }

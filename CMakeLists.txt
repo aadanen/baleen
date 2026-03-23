@@ -28,6 +28,7 @@ target_sources(baleen
   )
 
 enable_testing()
+list(APPEND CMAKE_CTEST_ARGUMENTS "--output-on-failure")
 set(BRILDIR ${CMAKE_CURRENT_SOURCE_DIR}/tests/bril)
 add_executable(test_runner tests/test_runner.cpp)
 
