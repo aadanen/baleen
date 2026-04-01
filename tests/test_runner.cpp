@@ -1,8 +1,8 @@
 #include <brilobject.h>
 #include <brilprogram.h>
+#include <cstdlib>
 #include <fstream>
 #include <iostream>
-#include <cstdlib>
 
 int test_serde(json data) {
   BrilProgram p(data);
@@ -17,7 +17,7 @@ int test_serde(json data) {
 
 int test_interp(json data, char *path_to_infile) {
   BrilProgram a(data);
-  //a.eliminateDeadCode();
+  a.eliminateDeadCode();
 
   std::string ifname = std::string(path_to_infile);
   std::string ofname = ifname + std::string(".opt");
@@ -25,8 +25,8 @@ int test_interp(json data, char *path_to_infile) {
   // dump to temporary file
   std::ofstream outfile(ofname);
   if (!outfile) {
-      std::cout << "Error: failed to open temporary file\n";
-      return 1;
+    std::cout << "Error: failed to open temporary file\n";
+    return 1;
   }
   std::string out = a.dump2json().dump(2);
   std::cout << out << '\n';

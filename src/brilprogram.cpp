@@ -80,7 +80,13 @@ int BrilProgram::getCFG() {
 
   cfg = std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
   for (int i = 0; i < blocks.size(); i++) {
-    // get the last instruction;
+    // for blocks we depend on via function calls
+    for (int j = blocks[i].start; j < blocks[i].start + blocks[i].length; j++) {
+      if (objects[j].op == BRIL_CALL) {
+        cfg[i].push_back(blocktable[objects[j].func]);
+      }
+    }
+    // for branch at the end of the block
     int last_instr = blocks[i].start + blocks[i].length - 1;
     if (objects[last_instr].isterminator()) {
       if (objects[last_instr].op == BRIL_JMP) {
@@ -133,7 +139,7 @@ int BrilProgram::numDeadBlocks() {
     if (stringtable.getString(blocks[i].name) == "main") {
       alive[i] = true;
     }
-    if (!alive[i]) {
+    if (!alive[i] && !(blocks[i].flags & BRIL_DEAD)) {
       blocks[i].flags |= BRIL_DEAD;
       counter++;
     }
@@ -145,6 +151,10 @@ int BrilProgram::numDeadBlocks() {
 // i feel like i need to see more optimizations before i can reason about a
 // general interface for compiler optimizations
 int BrilProgram::eliminateDeadCode() {
+  curr_program = this;
+  if (cfg.empty())
+    getCFG();
+
   int prev_dead_code = -1;
   int total_dead_code = 0;
   int tmp = 0;
@@ -156,13 +166,15 @@ int BrilProgram::eliminateDeadCode() {
     // if block[i] is dead, mark all the instructions in block[i] as dead
     for (BrilBasicBlock b : blocks) {
       if (b.flags & BRIL_DEAD) {
-        for (int i = b.start; i < b.start + b.length; i++) {
+        int i = b.start;
+        if (b.start > 1 && objects[b.start - 1].op == BRIL_LABEL)
+          i--;
+        for (i; i < b.start + b.length; i++) {
           objects[i].flags |= BRIL_DEAD;
         }
       }
     }
   }
-
 
   // make a new objects array without the dead instructions
   // update functions with their new number of instructions
@@ -170,31 +182,37 @@ int BrilProgram::eliminateDeadCode() {
   new_objects.emplace_back(); // 1 indexing
   int old_func_idx = 1;
   int new_func_idx = 1;
+  int offset = 0;
   while (old_func_idx < objects.size()) {
     // copy function object
     new_objects.push_back(objects[old_func_idx]);
-    
+    new_objects[new_func_idx].arg0 -= offset;
+
     // copy function arguments
-    for (int i = old_func_idx + 1; i < objects[old_func_idx].num_args; i++) {
+    for (int i = old_func_idx + 1;
+         i < old_func_idx + 1 + objects[old_func_idx].num_args; i++) {
       new_objects.push_back(objects[i]);
     }
 
     // copy alive instructions and decrement num_instrs by num dead instrs
-    for (int i = (objects[old_func_idx].arg0 + objects[old_func_idx].num_args);
-        i < objects[old_func_idx].num_instrs;
-        i++) {
+    int start = objects[old_func_idx].arg0 + objects[old_func_idx].num_args;
+    for (int i = start; i < start + objects[old_func_idx].num_instrs; i++) {
       if (objects[i].flags & BRIL_DEAD) {
-        new_objects[old_func_idx].num_instrs--;
+        new_objects[new_func_idx].num_instrs--;
+        offset++;
       } else {
-        new_objects.push_back(objects[i]); 
+        new_objects.push_back(objects[i]);
       }
     }
 
-    old_func_idx += objects[old_func_idx].num_args + objects[old_func_idx].num_instrs + 1;
-    new_func_idx += new_objects[new_func_idx].num_args + new_objects[new_func_idx].num_instrs + 1;
+    old_func_idx +=
+        objects[old_func_idx].num_args + objects[old_func_idx].num_instrs + 1;
+    new_func_idx += new_objects[new_func_idx].num_args +
+                    new_objects[new_func_idx].num_instrs + 1;
   }
   objects = new_objects;
   blocks.clear();
   cfg.clear();
+  curr_program = nullptr;
   return 0;
 }

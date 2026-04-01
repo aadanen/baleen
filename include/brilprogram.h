@@ -8,20 +8,21 @@
 
 struct BrilProgram {
 public:
+  BrilProgram(json program);
+  json dump2json();
+  int eliminateDeadCode();
+
   StringTable stringtable;
   std::vector<BrilObject> objects;
   std::vector<int> var_args;
   std::vector<BrilBasicBlock> blocks;
   std::vector<std::vector<int>> cfg;
-  BrilProgram(json program);
-  json dump2json();
 
 private:
   std::map<int, int> blocktable; // map stringtable entry to block index
   int getBlocks();
   int getCFG();
   int numDeadBlocks();
-  int eliminateDeadCode();
 };
 
 extern BrilProgram *curr_program;

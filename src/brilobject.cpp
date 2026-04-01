@@ -11,6 +11,7 @@ void addObject(json data, BrilOp op) {
 BrilObject::BrilObject() {
     this->op = BRIL_NONE;
     this->type = BrilType();
+    this->flags = 0;
     this->name = 0;
     this->num_args = 0;
     this->arg0 = 0;
@@ -280,8 +281,10 @@ bool BrilObject::isfunc() { return op == BRIL_FUNC; }
 
 void BrilObject::print() {
     std::cout << "op: " << op2string(op) << '\n';
+    std::cout << "flags: " << flags << '\n';
     std::cout << "type: " << type2string(type) << '\n';
-    std::cout << "name: " << curr_program->stringtable.getString(name) << '\n';
+    std::cout << "name: " << curr_program->stringtable.getString(this->name)
+              << '\n';
     std::cout << "num_args: " << num_args << '\n';
     std::cout << "arg0: " << arg0 << '\n';
     std::cout << "arg1: " << arg1 << '\n';
