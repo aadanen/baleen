@@ -1,0 +1,4 @@
+#!/usr/bin/sh
+bril2txt < ${1}.json > ${1}.bril
+bril2txt < ${1}.json.opt > ${1}.bril.opt
+

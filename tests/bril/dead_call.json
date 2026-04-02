@@ -1,0 +1,62 @@
+{
+  "functions": [
+    {
+      "args": [
+        {
+          "name": "x",
+          "type": "int"
+        }
+      ],
+      "instrs": [
+        {
+          "args": [
+            "x"
+          ],
+          "op": "ret"
+        },
+        {
+          "label": "label435"
+        }
+      ],
+      "name": "abs",
+      "type": "int"
+    },
+    {
+      "instrs": [
+        {
+          "dest": "y",
+          "op": "const",
+          "type": "int",
+          "value": 42
+        },
+        {
+          "labels": [
+            "end"
+          ],
+          "op": "jmp"
+        },
+        {
+          "args": [
+            "y"
+          ],
+          "dest": "z",
+          "funcs": [
+            "abs"
+          ],
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "label": "end"
+        },
+        {
+          "args": [
+            "y"
+          ],
+          "op": "print"
+        }
+      ],
+      "name": "main"
+    }
+  ]
+}

@@ -44,6 +44,7 @@ struct BrilObject {
     bool islabel();
     bool isterminator();
     bool isfunc();
+    int instr0();
 };
 
 #endif /* BRIL_OBJECT_H_ */

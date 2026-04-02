@@ -10,7 +10,7 @@ struct BrilProgram {
 public:
   BrilProgram(json program);
   json dump2json();
-  int eliminateDeadCode();
+  int optimize();
 
   StringTable stringtable;
   std::vector<BrilObject> objects;
@@ -22,7 +22,12 @@ private:
   std::map<int, int> blocktable; // map stringtable entry to block index
   int getBlocks();
   int getCFG();
-  int numDeadBlocks();
+  int markDeadBlocks();
+  int markDeadBlocksPass();
+  int markDeadFunctions();
+  int markUnusedVariables();
+  int markUnusedVariablesPass();
+  int eliminateDeadCode();
 };
 
 extern BrilProgram *curr_program;

@@ -279,6 +279,14 @@ bool BrilObject::isterminator() {
 bool BrilObject::islabel() { return op == BRIL_LABEL; }
 bool BrilObject::isfunc() { return op == BRIL_FUNC; }
 
+int BrilObject::instr0() {
+    if (!isfunc()) {
+        std::cerr << "Error: called instr0 on non-function object\n";
+        exit(1);
+    }
+    return arg0 + num_args;
+}
+
 void BrilObject::print() {
     std::cout << "op: " << op2string(op) << '\n';
     std::cout << "flags: " << flags << '\n';

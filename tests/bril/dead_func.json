@@ -1,0 +1,42 @@
+{
+  "functions": [
+    {
+      "args": [
+        {
+          "name": "x",
+          "type": "int"
+        }
+      ],
+      "instrs": [
+        {
+          "args": [
+            "x"
+          ],
+          "op": "ret"
+        },
+        {
+          "label": "label435"
+        }
+      ],
+      "name": "abs",
+      "type": "int"
+    },
+    {
+      "instrs": [
+        {
+          "dest": "y",
+          "op": "const",
+          "type": "int",
+          "value": 42
+        },
+        {
+          "args": [
+            "y"
+          ],
+          "op": "print"
+        }
+      ],
+      "name": "main"
+    }
+  ]
+}

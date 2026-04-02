@@ -1,6 +1,7 @@
 #include <brilbasicblock.h>
 #include <brilprogram.h>
 #include <iostream>
+#include <set>
 
 BrilProgram *curr_program = nullptr;
 
@@ -55,6 +56,9 @@ int BrilProgram::getBlocks() {
         bstart = index + 1;
       blength = 0;
     } else {
+      if (bstart == 0) {
+        bstart = index;
+      }
       blength++;
       if (this->objects[index].isterminator()) {
         this->blocks.emplace_back(bname, bstart, blength);
@@ -103,6 +107,7 @@ int BrilProgram::getCFG() {
     }
   }
 
+  /*
   int counter = 0;
   for (std::vector<int> &row : cfg) {
     std::cout << counter << ": [";
@@ -112,10 +117,11 @@ int BrilProgram::getCFG() {
     std::cout << "]\n";
     counter++;
   }
+  */
   return 0;
 }
 
-int BrilProgram::numDeadBlocks() {
+int BrilProgram::markDeadBlocksPass() {
   if (cfg.empty())
     getCFG();
 
@@ -147,27 +153,28 @@ int BrilProgram::numDeadBlocks() {
   return counter;
 }
 
-// maybe i want to markDeadCode and then separately eliminate dead code?
-// i feel like i need to see more optimizations before i can reason about a
-// general interface for compiler optimizations
-int BrilProgram::eliminateDeadCode() {
-  curr_program = this;
-  if (cfg.empty())
-    getCFG();
-
+int BrilProgram::markDeadBlocks() {
   int prev_dead_code = -1;
   int total_dead_code = 0;
   int tmp = 0;
   while (prev_dead_code != total_dead_code) {
     prev_dead_code = total_dead_code;
-    while ((tmp = numDeadBlocks()) > 0) {
+    while ((tmp = markDeadBlocksPass()) > 0) {
       total_dead_code += tmp;
     }
+    if (total_dead_code == prev_dead_code)
+      break;
     // if block[i] is dead, mark all the instructions in block[i] as dead
     for (BrilBasicBlock b : blocks) {
       if (b.flags & BRIL_DEAD) {
         int i = b.start;
-        if (b.start > 1 && objects[b.start - 1].op == BRIL_LABEL)
+        if (b.start > 1 && (objects[b.start - 1].op == BRIL_ARG)) {
+          while (objects[i - 1].op != BRIL_FUNC) {
+            i--;
+          }
+        }
+        if (i > 1 &&
+            (objects[i - 1].op == BRIL_LABEL || objects[i - 1].op == BRIL_FUNC))
           i--;
         for (i; i < b.start + b.length; i++) {
           objects[i].flags |= BRIL_DEAD;
@@ -175,6 +182,16 @@ int BrilProgram::eliminateDeadCode() {
       }
     }
   }
+  return 0;
+}
+
+// maybe i want to markDeadCode and then separately eliminate dead code?
+// i feel like i need to see more optimizations before i can reason about a
+// general interface for compiler optimizations
+int BrilProgram::eliminateDeadCode() {
+  curr_program = this;
+  if (cfg.empty())
+    getCFG();
 
   // make a new objects array without the dead instructions
   // update functions with their new number of instructions
@@ -185,34 +202,92 @@ int BrilProgram::eliminateDeadCode() {
   int offset = 0;
   while (old_func_idx < objects.size()) {
     // copy function object
-    new_objects.push_back(objects[old_func_idx]);
-    new_objects[new_func_idx].arg0 -= offset;
+    if (!(objects[old_func_idx].flags & BRIL_DEAD)) {
+      new_objects.push_back(objects[old_func_idx]);
+      new_objects[new_func_idx].arg0 -= offset;
 
-    // copy function arguments
-    for (int i = old_func_idx + 1;
-         i < old_func_idx + 1 + objects[old_func_idx].num_args; i++) {
-      new_objects.push_back(objects[i]);
-    }
-
-    // copy alive instructions and decrement num_instrs by num dead instrs
-    int start = objects[old_func_idx].arg0 + objects[old_func_idx].num_args;
-    for (int i = start; i < start + objects[old_func_idx].num_instrs; i++) {
-      if (objects[i].flags & BRIL_DEAD) {
-        new_objects[new_func_idx].num_instrs--;
-        offset++;
-      } else {
+      // copy function arguments
+      for (int i = old_func_idx + 1;
+           i < old_func_idx + 1 + objects[old_func_idx].num_args; i++) {
         new_objects.push_back(objects[i]);
       }
-    }
 
-    old_func_idx +=
-        objects[old_func_idx].num_args + objects[old_func_idx].num_instrs + 1;
-    new_func_idx += new_objects[new_func_idx].num_args +
-                    new_objects[new_func_idx].num_instrs + 1;
+      // copy alive instructions and decrement num_instrs by num dead instrs
+      int start = objects[old_func_idx].arg0 + objects[old_func_idx].num_args;
+      for (int i = start; i < start + objects[old_func_idx].num_instrs; i++) {
+        if (objects[i].flags & BRIL_DEAD) {
+          offset++;
+          new_objects[new_func_idx].num_instrs--;
+        } else {
+          new_objects.push_back(objects[i]);
+        }
+      }
+      old_func_idx += objects[old_func_idx].width();
+      new_func_idx += new_objects[new_func_idx].width();
+    } else {
+      int w = objects[old_func_idx].width();
+      offset += w;
+      old_func_idx += w;
+    }
   }
   objects = new_objects;
   blocks.clear();
   cfg.clear();
   curr_program = nullptr;
+  return 0;
+}
+
+int BrilProgram::markUnusedVariablesPass() {
+  // each function handled independtly to respect scope rules
+  int counter = 0;
+  for (int func_idx = 1; func_idx < objects.size();
+       func_idx += objects[func_idx].width()) {
+    int instr0 = objects[func_idx].instr0();
+    // set of stringtable indicies of used variables
+    std::set<int> used;
+    // read all instr args to see what vars are used
+    for (int _i = 0; _i < objects[func_idx].num_instrs; _i++) {
+      int i = instr0 + _i;
+      if (objects[i].op == BRIL_LABEL || (objects[i].flags & BRIL_DEAD))
+        continue;
+
+      int *p;
+      if (objects[i].op == BRIL_CALL)
+        p = &var_args[objects[i].arg0];
+      else
+        p = &objects[i].arg0;
+
+      for (int j = 0; j < objects[i].num_args; j++) {
+        used.insert(p[j]);
+      }
+    }
+
+    // examine all variables (dest) and mark dead if not used
+    for (int _i = 0; _i < objects[func_idx].num_instrs; _i++) {
+      int i = instr0 + _i;
+      if (objects[i].op == BRIL_LABEL)
+        continue;
+
+      if (objects[i].dest && (used.find(objects[i].dest) == used.end()) &&
+          !(objects[i].flags & BRIL_DEAD)) {
+        objects[i].flags |= BRIL_DEAD;
+        counter++;
+      }
+    }
+  }
+  return counter;
+}
+
+int BrilProgram::markUnusedVariables() {
+  int tmp;
+  while ((tmp = markUnusedVariablesPass()) > 0)
+    ;
+  return 0;
+}
+
+int BrilProgram::optimize() {
+  markUnusedVariables();
+  markDeadBlocks();
+  eliminateDeadCode();
   return 0;
 }

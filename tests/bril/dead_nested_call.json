@@ -1,0 +1,94 @@
+{
+  "functions": [
+    {
+      "args": [
+        {
+          "name": "x",
+          "type": "int"
+        }
+      ],
+      "instrs": [
+        {
+          "dest": "var1",
+          "op": "const",
+          "type": "int",
+          "value": 67
+        },
+        {
+          "args": [
+            "x"
+          ],
+          "op": "ret"
+        }
+      ],
+      "name": "g",
+      "type": "int"
+    },
+    {
+      "args": [
+        {
+          "name": "x",
+          "type": "int"
+        }
+      ],
+      "instrs": [
+        {
+          "labels": [
+            "end"
+          ],
+          "op": "jmp"
+        },
+        {
+          "args": [
+            "x"
+          ],
+          "dest": "var1",
+          "funcs": [
+            "g"
+          ],
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "label": "end"
+        },
+        {
+          "args": [
+            "x"
+          ],
+          "op": "ret"
+        }
+      ],
+      "name": "f",
+      "type": "int"
+    },
+    {
+      "instrs": [
+        {
+          "dest": "var1",
+          "op": "const",
+          "type": "int",
+          "value": 42
+        },
+        {
+          "args": [
+            "var1"
+          ],
+          "dest": "var2",
+          "funcs": [
+            "f"
+          ],
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "args": [
+            "var2"
+          ],
+          "op": "print"
+        }
+      ],
+      "name": "main"
+    }
+  ]
+}
