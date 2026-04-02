@@ -1,6 +1,8 @@
 build
 .vs
 *.opt
+*.bril
+tests/bril/*.txt
 CMakeSettings.json
 *.swp
 *.swo
