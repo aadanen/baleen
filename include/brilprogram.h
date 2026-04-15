@@ -3,6 +3,7 @@
 
 #include <brilbasicblock.h>
 #include <brilobject.h>
+#include <lvn.h>
 #include <stringtable.h>
 #include <vector>
 
@@ -20,6 +21,7 @@ public:
 
 private:
   std::map<int, int> blocktable; // map stringtable entry to block index
+  void printBlocks();
   int getBlocks();
   int getCFG();
   int markDeadBlocks();
@@ -27,7 +29,10 @@ private:
   int markDeadFunctions();
   int markUnusedVariables();
   int markUnusedVariablesPass();
+  int markUnusedDefinitions();
+  int markUnusedDefinitionsPass();
   int eliminateDeadCode();
+  int local_value_numbering();
 };
 
 extern BrilProgram *curr_program;

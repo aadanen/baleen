@@ -11,6 +11,7 @@ struct BrilType {
 
     BrilType();
     json dump2json();
+    bool operator==(const BrilType &rhs) const;
 };
 
 void parseBrilType(BrilType *ptr2type, json data);

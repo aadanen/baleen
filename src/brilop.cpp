@@ -44,3 +44,14 @@ BrilOp string2op(const std::string &str) {
         exit(1);
     }
 }
+
+bool isAssociative(BrilOp op) {
+    switch (op) {
+    case BRIL_ADD:
+    case BRIL_MUL:
+    case BRIL_EQ:
+        return true;
+    default:
+        return false;
+    };
+}

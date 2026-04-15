@@ -39,5 +39,6 @@ enum BrilOp {
 
 std::string op2string(BrilOp op);
 BrilOp string2op(const std::string &str);
+bool isAssociative(BrilOp op);
 
 #endif /* BRIL_OP_H_ */

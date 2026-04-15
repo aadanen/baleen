@@ -1,0 +1,3 @@
+#!/usr/bin/sh
+bril2json < ${1}.bril > ${1}.json
+

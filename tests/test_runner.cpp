@@ -9,7 +9,7 @@ int test_serde(json data) {
   json out = p.dump2json();
   // std::cout << out.dump(2) << '\n';
   if (data != out) {
-    std::cerr << "Error: json round trip failed\n";
+    std::cout << "Error: json round trip failed\n";
     return 1;
   }
   return 0;
@@ -49,11 +49,15 @@ int test_interp(json data, char *path_to_infile) {
   std::ifstream o_stm(optresult);
   std::ifstream i_stm(ogresult);
   char o_buf;
+  std::string optimized_str;
+  std::string original_str;
   char i_buf;
   bool matching = true;
   while (matching) {
     o_stm >> o_buf;
+    optimized_str += o_buf;
     i_stm >> i_buf;
+    original_str += i_buf;
     if (o_buf != i_buf) {
       matching = false;
       break;
@@ -64,6 +68,15 @@ int test_interp(json data, char *path_to_infile) {
 
   if (o_stm.eof() + i_stm.eof() == 1)
     matching = false;
+
+  if (a_result != b_result) {
+    std::cout << "Brili calls returned " << a_result << ' ' << b_result << '\n';
+  }
+  if (!matching) {
+    std::cout << "Brili calls has mismatched output\n original:\n"
+              << original_str << "\noptimized:\n"
+              << optimized_str << '\n';
+  }
 
   if ((a_result != b_result) || !matching)
     return 1;
@@ -78,7 +91,7 @@ int main(int argc, char **argv) {
   } else {
     std::ifstream f(argv[1]);
     if (!f) {
-      std::cerr << "error: failed to open file\n";
+      std::cout << "error: failed to open file\n";
       exit(1);
     }
     data = json::parse(f);
