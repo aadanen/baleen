@@ -13,6 +13,8 @@ target_sources(baleen
     src/brilprimitive.cpp
     src/briltype.cpp
     src/brilbasicblock.cpp
+    src/baleen_utils.cpp
+    src/lvn.cpp
   PUBLIC
     FILE_SET HEADERS
     TYPE HEADERS
@@ -25,6 +27,8 @@ target_sources(baleen
       include/briltype.h
       include/brilbasicblock.h
       include/stringtable.h
+      include/baleen_utils.h
+      include/lvn.h
   )
 
 enable_testing()
@@ -49,6 +53,12 @@ BALEEN_TEST(dead_call)
 BALEEN_TEST(dead_nested_call)
 BALEEN_TEST(unused_vars)
 BALEEN_TEST(unused_nested_vars)
+BALEEN_TEST(dead_def)
+BALEEN_TEST(simple_cse)
+BALEEN_TEST(copy_propogation)
+BALEEN_TEST(redef_cse)
+BALEEN_TEST(assoc_cse)
+BALEEN_TEST(assoc2_cse)
 
 add_executable(stringtable_tester tests/stringtable_tester.cpp)
 target_link_libraries(stringtable_tester baleen)

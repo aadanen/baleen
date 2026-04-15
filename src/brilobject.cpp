@@ -9,16 +9,16 @@ void addObject(json data, BrilOp op) {
 }
 
 BrilObject::BrilObject() {
-    this->op = BRIL_NONE;
-    this->type = BrilType();
-    this->flags = 0;
-    this->name = 0;
-    this->num_args = 0;
-    this->arg0 = 0;
-    this->arg1 = 0;
-    this->arg2 = 0;
-    this->num_instrs = 0;
-    this->value = 0;
+    op = BRIL_NONE;
+    type = BrilType();
+    flags = 0;
+    name = 0;
+    num_args = 0;
+    arg0 = 0;
+    arg1 = 0;
+    arg2 = 0;
+    num_instrs = 0;
+    value = 0;
 }
 
 int BrilObject::init(json data, BrilOp op) {
@@ -287,6 +287,51 @@ int BrilObject::instr0() {
     return arg0 + num_args;
 }
 
+bool BrilObject::operator==(const BrilObject &rhs) const {
+    return op == rhs.op && type == rhs.type && flags == rhs.flags &&
+           num_args == rhs.num_args && arg0 == rhs.arg0 && arg1 == rhs.arg1 &&
+           arg2 == rhs.arg2 && num_instrs == rhs.num_instrs &&
+           value == rhs.value;
+}
+
+bool BrilObject::operator!=(const BrilObject &rhs) const {
+    return !(*this == rhs);
+}
+
+std::size_t BrilObjectHasher::operator()(const BrilObject &k) const {
+    using std::hash;
+    using std::size_t;
+    using std::string;
+    using std::to_string;
+
+    string s = "";
+    s += to_string(k.op);
+    s += "_";
+    s += to_string(k.type.indirection);
+    s += "_";
+    s += to_string(k.type.primitive);
+    s += "_";
+    s += to_string(k.flags);
+    s += "_";
+    /*
+    s += to_string(k.name); the whole point of lvn is to not care for names
+    s += "_";
+    */
+    s += to_string(k.num_args);
+    s += "_";
+    s += to_string(k.arg0);
+    s += "_";
+    s += to_string(k.arg1);
+    s += "_";
+    s += to_string(k.arg2);
+    s += "_";
+    s += to_string(k.num_instrs);
+    s += "_";
+    s += to_string(k.value);
+    size_t h = hash<string>()(s);
+    return h;
+}
+
 void BrilObject::print() {
     std::cout << "op: " << op2string(op) << '\n';
     std::cout << "flags: " << flags << '\n';
@@ -300,3 +345,4 @@ void BrilObject::print() {
     std::cout << "num_instrs: " << num_instrs << '\n';
     std::cout << '\n';
 }
+

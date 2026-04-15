@@ -44,7 +44,13 @@ struct BrilObject {
     bool islabel();
     bool isterminator();
     bool isfunc();
+    bool operator==(const BrilObject &rhs) const;
+    bool operator!=(const BrilObject &rhs) const;
     int instr0();
+};
+
+struct BrilObjectHasher {
+    std::size_t operator()(const BrilObject &k) const;
 };
 
 #endif /* BRIL_OBJECT_H_ */

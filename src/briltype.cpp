@@ -15,6 +15,10 @@ json BrilType::dump2json() {
     return result;
 }
 
+bool BrilType::operator==(const BrilType &rhs) const {
+    return primitive == rhs.primitive && indirection == rhs.indirection;
+}
+
 std::string type2string(BrilType type) {
     std::string result = "{";
     result += primitive2string(type.primitive);

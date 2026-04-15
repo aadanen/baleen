@@ -22,3 +22,7 @@ int StringTable::lookup(const std::string &str) {
         return item->second;
     }
 }
+
+bool StringTable::contains(const std::string &str) {
+    return this->entries.find(str) != this->entries.end();
+}

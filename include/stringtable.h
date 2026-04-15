@@ -13,6 +13,7 @@ private:
 public:
   const std::string &getString(int);
   int lookup(const std::string &str);
+  bool contains(const std::string &str);
   StringTable();
 };
 

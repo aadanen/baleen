@@ -1,7 +1,9 @@
+#include <baleen_utils.h>
 #include <brilbasicblock.h>
 #include <brilprogram.h>
 #include <iostream>
 #include <set>
+#include <unordered_map>
 
 BrilProgram *curr_program = nullptr;
 
@@ -15,7 +17,6 @@ BrilProgram::BrilProgram(json program) {
     curr_program->objects.push_back(BrilObject());
     curr_program->objects[i].init(func, BRIL_FUNC);
   }
-
   curr_program = nullptr;
 }
 
@@ -33,6 +34,12 @@ json BrilProgram::dump2json() {
   curr_program = nullptr;
   return result;
 };
+
+void BrilProgram::printBlocks() {
+  for (BrilBasicBlock &b : this->blocks) {
+    b.print();
+  }
+}
 
 int BrilProgram::getBlocks() {
   curr_program = this;
@@ -71,9 +78,7 @@ int BrilProgram::getBlocks() {
   if (bstart > 0)
     this->blocks.emplace_back(bname, bstart, blength);
 
-  for (BrilBasicBlock &b : this->blocks) {
-    b.print();
-  }
+  printBlocks();
   curr_program = nullptr;
   return 0;
 }
@@ -86,7 +91,7 @@ int BrilProgram::getCFG() {
   for (int i = 0; i < blocks.size(); i++) {
     // for blocks we depend on via function calls
     for (int j = blocks[i].start; j < blocks[i].start + blocks[i].length; j++) {
-      if (objects[j].op == BRIL_CALL) {
+      if (objects[j].op == BRIL_CALL && !(objects[j].flags & BRIL_DEAD)) {
         cfg[i].push_back(blocktable[objects[j].func]);
       }
     }
@@ -122,8 +127,6 @@ int BrilProgram::getCFG() {
 }
 
 int BrilProgram::markDeadBlocksPass() {
-  if (cfg.empty())
-    getCFG();
 
   // this bit assumes dead until proven alive so imma just mark them with
   // BRIL_DEAD but then flip them all over so the logic works
@@ -154,6 +157,8 @@ int BrilProgram::markDeadBlocksPass() {
 }
 
 int BrilProgram::markDeadBlocks() {
+  if (cfg.empty())
+    getCFG();
   int prev_dead_code = -1;
   int total_dead_code = 0;
   int tmp = 0;
@@ -182,7 +187,7 @@ int BrilProgram::markDeadBlocks() {
       }
     }
   }
-  return 0;
+  return total_dead_code;
 }
 
 // maybe i want to markDeadCode and then separately eliminate dead code?
@@ -190,9 +195,6 @@ int BrilProgram::markDeadBlocks() {
 // general interface for compiler optimizations
 int BrilProgram::eliminateDeadCode() {
   curr_program = this;
-  if (cfg.empty())
-    getCFG();
-
   // make a new objects array without the dead instructions
   // update functions with their new number of instructions
   std::vector<BrilObject> new_objects;
@@ -279,15 +281,182 @@ int BrilProgram::markUnusedVariablesPass() {
 }
 
 int BrilProgram::markUnusedVariables() {
+  int total = 0;
   int tmp;
   while ((tmp = markUnusedVariablesPass()) > 0)
-    ;
+    total += tmp;
+  return total;
+}
+
+int BrilProgram::markUnusedDefinitionsPass() {
+  int counter = 0;
+  for (BrilBasicBlock &b : blocks) {
+    // map from var to objects index
+    std::map<int, int> last_def;
+
+    // for each variable keep track of the most recent definition
+    // if I redfine a variable then mark the old one as used
+    // whenever I use an instruction as an argument remove its definition
+    for (int i = b.start; i < b.start + b.length; i++) {
+      if (objects[i].op == BRIL_LABEL || (objects[i].flags & BRIL_DEAD))
+        continue;
+
+      int *p;
+      if (objects[i].op == BRIL_CALL)
+        p = &var_args[objects[i].arg0];
+      else
+        p = &objects[i].arg0;
+
+      // remove uses
+      for (int j = 0; j < objects[i].num_args; j++) {
+        last_def.erase(p[j]);
+      }
+
+      // register definitions
+      if (last_def.find(objects[i].dest) != last_def.end()) {
+        // if there was a prev definition, mark as dead
+        objects[last_def[objects[i].dest]].flags |= BRIL_DEAD;
+        counter++;
+      }
+      if (objects[i].dest)
+        last_def[objects[i].dest] = i;
+    }
+  }
+  return counter;
+}
+
+int BrilProgram::markUnusedDefinitions() {
+  if (blocks.empty())
+    getBlocks();
+  int total = 0;
+  int tmp;
+  while ((tmp = markUnusedDefinitionsPass()) > 0)
+    total += tmp;
+  return total;
+}
+
+BrilObject lvn_copyof(int name, const BrilObject *obj) {
+  BrilObject result = BrilObject();
+  result.dest = name;
+  result.op = BRIL_ID;
+  // result.type = obj.type;
+  // result.flags = obj.flags;
+  result.num_args = 1;
+  result.arg0 = obj->dest;
+  return result;
+}
+
+void lvn_renameArgs(BrilObject &obj, std::map<int, int> &rename) {
+  int *p = &obj.arg0;
+  for (int j = 0; j < obj.num_args; j++) {
+    if (rename.find(p[j]) != rename.end()) {
+      p[j] = rename[p[j]];
+    }
+  }
+}
+
+int BrilProgram::local_value_numbering() {
+  if (blocks.empty())
+    getBlocks();
+
+  LVN lvn = LVN();
+  for (BrilBasicBlock &b : blocks) {
+    // precompute the last definition of each variable
+    std::map<int, int> last_def;
+    std::map<int, int> rename;
+    for (int i = b.start; i < b.start + b.length; i++) {
+      if (objects[i].dest) {
+        last_def[objects[i].dest] = i;
+      }
+    }
+
+    for (int i = b.start; i < b.start + b.length; i++) {
+      if (objects[i].dest) {
+        // erase renamings on redefinition
+        if (rename.find(objects[i].dest) != rename.end())
+          rename.erase(objects[i].dest);
+
+        // setup renaming for all new definitions
+        if (i < last_def[objects[i].dest]) {
+          int original = objects[i].dest;
+          objects[i].dest = uniqueRename(*this, objects[i].dest);
+          rename[original] = objects[i].dest;
+        }
+      }
+
+      lvn_renameArgs(objects[i], rename);
+
+      // can't optimize calls or put them in the lvn table
+      if (objects[i].op == BRIL_CALL) {
+        continue;
+      }
+
+      // lvn table instr has value numbers instead of variable names
+      BrilObject obj = objects[i];
+      int *p = &obj.arg0;
+      for (int j = 0; j < obj.num_args; j++) {
+        int arg_vn = lvn.lookupVN(p[j]);
+        if (arg_vn >= 0) {
+          p[j] = arg_vn;
+        } else {
+          if (rename.find(p[j]) != rename.end()) {
+            p[j] = rename[p[j]];
+          }
+          p[j] = -p[j]; // if not found, just -name for reconstruction later
+        }
+      }
+
+      int vn = lvn.lookupVN(obj);
+      if (vn >= 0) {
+        if (objects[i].dest)
+          objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
+      } else {
+        // insert a new row into the lvn table
+        vn = lvn.insert(obj);
+
+        // modify the current instruction to use the arguments from the vn
+        int *p = &objects[i].arg0;
+        int *q = &obj.arg0;
+        const BrilObject *arg_instr;
+        for (int j = 0; j < objects[i].num_args; j++) {
+          if (q[j] >= 0) {
+            arg_instr = lvn.lookupInstr(q[j]);
+            if (arg_instr && arg_instr->dest > 0) {
+              p[j] = arg_instr->dest; // lvn -> modified instr -> arg_vn ->
+                                      // arg_instr -> true name
+            } else {
+              std::cout << "error: lvn shouldn't be here i think LOL\n";
+              return -1;
+            }
+          } else { // its some unknown value that we -named earlier
+            p[j] = -q[j];
+          }
+        }
+      }
+      if (objects[i].dest)
+        lvn.updateEnv(objects[i].dest, vn);
+    }
+  }
   return 0;
 }
 
 int BrilProgram::optimize() {
-  markUnusedVariables();
-  markDeadBlocks();
+  local_value_numbering();
+  int tmp = 1;
+  while (tmp) {
+    tmp = 0;
+    std::cout << "START\n";
+    tmp += markUnusedVariables();
+    curr_program = this;
+    printBlocks();
+    tmp += markUnusedDefinitions();
+    curr_program = this;
+    printBlocks();
+    tmp += markDeadBlocks();
+    curr_program = this;
+    printBlocks();
+  }
   eliminateDeadCode();
+  curr_program = nullptr;
   return 0;
 }
