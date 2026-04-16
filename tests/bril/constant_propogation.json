@@ -9,23 +9,8 @@
           "value": 4
         },
         {
-          "dest": "y",
-          "op": "const",
-          "type": "int",
-          "value": 2
-        },
-        {
           "args": [
-            "x",
-            "y"
-          ],
-          "dest": "a",
-          "op": "add",
-          "type": "int"
-        },
-        {
-          "args": [
-            "a"
+            "x"
           ],
           "dest": "copy1",
           "op": "id",

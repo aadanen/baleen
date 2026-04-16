@@ -1,0 +1,4 @@
+#!/usr/bin/sh
+for file in *; do
+    ./b2t $(basename $file)
+done

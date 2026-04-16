@@ -1,0 +1,88 @@
+{
+  "functions": [
+    {
+      "args": [
+        {
+          "name": "x1",
+          "type": "int"
+        },
+        {
+          "name": "x2",
+          "type": "int"
+        }
+      ],
+      "instrs": [
+        {
+          "args": [
+            "x1",
+            "x2"
+          ],
+          "dest": "s1",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "x1",
+            "x2"
+          ],
+          "dest": "s2",
+          "op": "add",
+          "type": "int"
+        },
+        {
+          "args": [
+            "s1",
+            "s2"
+          ],
+          "dest": "res",
+          "op": "mul",
+          "type": "int"
+        },
+        {
+          "args": [
+            "res"
+          ],
+          "op": "ret"
+        }
+      ],
+      "name": "foo",
+      "type": "int"
+    },
+    {
+      "instrs": [
+        {
+          "dest": "a",
+          "op": "const",
+          "type": "int",
+          "value": 4
+        },
+        {
+          "dest": "b",
+          "op": "const",
+          "type": "int",
+          "value": 2
+        },
+        {
+          "args": [
+            "a",
+            "b"
+          ],
+          "dest": "prod",
+          "funcs": [
+            "foo"
+          ],
+          "op": "call",
+          "type": "int"
+        },
+        {
+          "args": [
+            "prod"
+          ],
+          "op": "print"
+        }
+      ],
+      "name": "main"
+    }
+  ]
+}

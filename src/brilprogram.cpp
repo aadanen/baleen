@@ -335,14 +335,25 @@ int BrilProgram::markUnusedDefinitions() {
   return total;
 }
 
+// also tries to do copy and constant propogation
 BrilObject lvn_copyof(int name, const BrilObject *obj) {
   BrilObject result = BrilObject();
   result.dest = name;
-  result.op = BRIL_ID;
-  // result.type = obj.type;
-  // result.flags = obj.flags;
-  result.num_args = 1;
-  result.arg0 = obj->dest;
+  result.type = obj->type;
+  result.flags = obj->flags;
+  if (obj->op == BRIL_CONST) {
+    result.op = BRIL_CONST;
+    result.value = obj->value;
+    result.num_args = 0;
+  } else if (obj->op == BRIL_ID) {
+    result.op = BRIL_ID;
+    result.arg0 = obj->arg0;
+    result.num_args = 1;
+  } else {
+    result.op = BRIL_ID;
+    result.arg0 = obj->dest;
+    result.num_args = 1;
+  }
   return result;
 }
 
@@ -359,8 +370,24 @@ int BrilProgram::local_value_numbering() {
   if (blocks.empty())
     getBlocks();
 
-  LVN lvn = LVN();
   for (BrilBasicBlock &b : blocks) {
+    LVN lvn = LVN();
+    int fdx = b.start;
+    while (fdx >= 0) { // register the current function arguments
+      if (objects[fdx].op == BRIL_FUNC)
+        break;
+
+      if (objects[fdx].op == BRIL_ARG) {
+        BrilObject obj = BrilObject();
+        obj.op = BRIL_ID;
+        obj.num_args = 1;
+        obj.name = objects[fdx].name;
+        obj.arg0 = objects[fdx].name; // negative cuz its not a vn
+        int vn = lvn.insert(obj);
+        lvn.updateEnv(objects[fdx].name, vn);
+      }
+      fdx--;
+    }
     // precompute the last definition of each variable
     std::map<int, int> last_def;
     std::map<int, int> rename;
@@ -384,6 +411,12 @@ int BrilProgram::local_value_numbering() {
         }
       }
 
+      if (isAssociative(objects[i].op)) {
+        if (objects[i].arg0 > objects[i].arg1) {
+          std::swap(objects[i].arg0, objects[i].arg1);
+        }
+      }
+
       lvn_renameArgs(objects[i], rename);
 
       // can't optimize calls or put them in the lvn table
@@ -394,6 +427,7 @@ int BrilProgram::local_value_numbering() {
       // lvn table instr has value numbers instead of variable names
       BrilObject obj = objects[i];
       int *p = &obj.arg0;
+      int original_arg0 = p[0];
       for (int j = 0; j < obj.num_args; j++) {
         int arg_vn = lvn.lookupVN(p[j]);
         if (arg_vn >= 0) {
@@ -411,25 +445,30 @@ int BrilProgram::local_value_numbering() {
         if (objects[i].dest)
           objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
       } else {
-        // insert a new row into the lvn table
-        vn = lvn.insert(obj);
+        if (objects[i].op == BRIL_ID) { // copies aren't generating values
+          vn = lvn.lookupVN(original_arg0);
+          objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
+        } else {
+          // insert a new row into the lvn table
+          vn = lvn.insert(obj);
 
-        // modify the current instruction to use the arguments from the vn
-        int *p = &objects[i].arg0;
-        int *q = &obj.arg0;
-        const BrilObject *arg_instr;
-        for (int j = 0; j < objects[i].num_args; j++) {
-          if (q[j] >= 0) {
-            arg_instr = lvn.lookupInstr(q[j]);
-            if (arg_instr && arg_instr->dest > 0) {
-              p[j] = arg_instr->dest; // lvn -> modified instr -> arg_vn ->
-                                      // arg_instr -> true name
-            } else {
-              std::cout << "error: lvn shouldn't be here i think LOL\n";
-              return -1;
+          // modify the current instruction to use the arguments from the vn
+          int *p = &objects[i].arg0;
+          int *q = &obj.arg0;
+          const BrilObject *arg_instr;
+          for (int j = 0; j < objects[i].num_args; j++) {
+            if (q[j] >= 0) {
+              arg_instr = lvn.lookupInstr(q[j]);
+              if (arg_instr && arg_instr->dest > 0) {
+                p[j] = arg_instr->dest; // lvn -> modified instr -> arg_vn ->
+                                        // arg_instr -> true name
+              } else {
+                std::cout << "error: lvn shouldn't be here i think LOL\n";
+                return -1;
+              }
+            } else { // its some unknown value that we -named earlier
+              p[j] = -q[j];
             }
-          } else { // its some unknown value that we -named earlier
-            p[j] = -q[j];
           }
         }
       }

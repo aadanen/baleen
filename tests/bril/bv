@@ -1,0 +1,4 @@
+#!/usr/bin/sh
+./b2t ${1}
+vimdiff ${1}.bril ${1}.bril.opt
+
