@@ -14,6 +14,7 @@ target_sources(baleen
     src/briltype.cpp
     src/brilbasicblock.cpp
     src/baleen_utils.cpp
+    src/brilfunction.cpp
     src/lvn.cpp
   PUBLIC
     FILE_SET HEADERS
@@ -26,6 +27,7 @@ target_sources(baleen
       include/brilprimitive.h
       include/briltype.h
       include/brilbasicblock.h
+      include/brilfunction.h
       include/stringtable.h
       include/baleen_utils.h
       include/lvn.h
@@ -61,6 +63,7 @@ BALEEN_TEST(assoc2_cse)
 BALEEN_TEST(func_cse)
 BALEEN_TEST(copy_propogation)
 BALEEN_TEST(constant_propogation)
+BALEEN_TEST(dataflow)
 
 add_executable(stringtable_tester tests/stringtable_tester.cpp)
 target_link_libraries(stringtable_tester baleen)

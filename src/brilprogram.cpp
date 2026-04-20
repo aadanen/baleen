@@ -2,7 +2,7 @@
 #include <brilbasicblock.h>
 #include <brilprogram.h>
 #include <iostream>
-#include <set>
+#include <queue>
 #include <unordered_map>
 
 BrilProgram *curr_program = nullptr;
@@ -41,24 +41,58 @@ void BrilProgram::printBlocks() {
   }
 }
 
+void BrilProgram::printFunctions() {
+  for (BrilFunction &fn : functions) {
+    std::cout << stringtable.getString(objects[fn.idx].name) << '\n';
+    for (int bdx = fn.entry; bdx < fn.entry + fn.length; bdx++) {
+      curr_program = this;
+      blocks[bdx].print();
+    }
+    std::cout << '\n';
+  }
+}
+
+void BrilProgram::getFunctions() {
+  int fdx = 0;
+  int fentry = 0;
+  int flength = 0;
+  for (int i = 0; i < blocks.size(); i++) {
+    if (objects[blocks[i].start - 1].op == BRIL_ARG ||
+        objects[blocks[i].start - 1].op == BRIL_FUNC) {
+      if (flength > 0) {
+        functions.emplace_back(fdx, fentry, flength);
+      }
+      fentry = i;
+      fdx = blocks[i].start - 1;
+      while (objects[fdx].op != BRIL_FUNC) {
+        fdx--;
+      }
+      flength = 1;
+    } else {
+      flength++;
+    }
+  }
+  functions.emplace_back(fdx, fentry, flength);
+}
+
 int BrilProgram::getBlocks() {
   curr_program = this;
   int bname = 0;
   int bstart = 0;
   int blength = 0;
   for (int index = 1; index < objects.size(); index++) {
-    if (this->objects[index].op == BRIL_ARG)
+    if (objects[index].op == BRIL_ARG)
       continue;
 
-    if (this->objects[index].isfunc() || this->objects[index].islabel()) {
+    if (objects[index].isfunc() || objects[index].islabel()) {
       if (bstart > 0) {
-        this->blocks.emplace_back(bname, bstart, blength);
+        blocks.emplace_back(bname, bstart, blength);
       }
 
-      bname = this->objects[index].name;
-      this->blocktable[bname] = this->blocks.size();
-      if (this->objects[index].isfunc())
-        bstart = this->objects[index].arg0 + this->objects[index].num_args;
+      bname = objects[index].name;
+      blocktable[bname] = blocks.size();
+      if (objects[index].isfunc())
+        bstart = objects[index].arg0 + objects[index].num_args;
       else
         bstart = index + 1;
       blength = 0;
@@ -67,8 +101,8 @@ int BrilProgram::getBlocks() {
         bstart = index;
       }
       blength++;
-      if (this->objects[index].isterminator()) {
-        this->blocks.emplace_back(bname, bstart, blength);
+      if (objects[index].isterminator()) {
+        blocks.emplace_back(bname, bstart, blength);
         bname = 0;
         bstart = 0;
         blength = 0;
@@ -78,8 +112,39 @@ int BrilProgram::getBlocks() {
   if (bstart > 0)
     this->blocks.emplace_back(bname, bstart, blength);
 
-  printBlocks();
+  getFunctions();
   curr_program = nullptr;
+  return 0;
+}
+
+int BrilProgram::getDceCFG() {
+  if (blocks.empty())
+    getBlocks();
+
+  dce_cfg = std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
+  for (int i = 0; i < blocks.size(); i++) {
+    // for blocks we depend on via function calls
+    for (int j = blocks[i].start; j < blocks[i].start + blocks[i].length; j++) {
+      if (objects[j].op == BRIL_CALL && !(objects[j].flags & BRIL_DEAD)) {
+        dce_cfg[i].push_back(blocktable[objects[j].func]);
+      }
+    }
+    // for branch at the end of the block
+    int last_instr = blocks[i].start + blocks[i].length - 1;
+    if (objects[last_instr].isterminator()) {
+      if (objects[last_instr].op == BRIL_JMP) {
+        dce_cfg[i].push_back(blocktable[objects[last_instr].arg0]);
+      } else if (objects[last_instr].op == BRIL_BR) {
+        dce_cfg[i].push_back(blocktable[objects[last_instr].arg1]);
+        dce_cfg[i].push_back(blocktable[objects[last_instr].arg2]);
+      } // else its a ret instruction and so control goes to some caller
+    } else {
+      if (last_instr + 1 < objects.size() &&
+          objects[last_instr + 1].op == BRIL_LABEL) {
+        dce_cfg[i].push_back(blocktable[objects[last_instr + 1].name]);
+      }
+    }
+  }
   return 0;
 }
 
@@ -87,42 +152,29 @@ int BrilProgram::getCFG() {
   if (blocks.empty())
     getBlocks();
 
+  back_cfg = std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
   cfg = std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
   for (int i = 0; i < blocks.size(); i++) {
-    // for blocks we depend on via function calls
-    for (int j = blocks[i].start; j < blocks[i].start + blocks[i].length; j++) {
-      if (objects[j].op == BRIL_CALL && !(objects[j].flags & BRIL_DEAD)) {
-        cfg[i].push_back(blocktable[objects[j].func]);
-      }
-    }
     // for branch at the end of the block
     int last_instr = blocks[i].start + blocks[i].length - 1;
     if (objects[last_instr].isterminator()) {
       if (objects[last_instr].op == BRIL_JMP) {
         cfg[i].push_back(blocktable[objects[last_instr].arg0]);
+        back_cfg[blocktable[objects[last_instr].arg0]].push_back(i);
       } else if (objects[last_instr].op == BRIL_BR) {
         cfg[i].push_back(blocktable[objects[last_instr].arg1]);
         cfg[i].push_back(blocktable[objects[last_instr].arg2]);
+        back_cfg[blocktable[objects[last_instr].arg1]].push_back(i);
+        back_cfg[blocktable[objects[last_instr].arg2]].push_back(i);
       } // else its a ret instruction and so control goes to some caller
     } else {
       if (last_instr + 1 < objects.size() &&
           objects[last_instr + 1].op == BRIL_LABEL) {
         cfg[i].push_back(blocktable[objects[last_instr + 1].name]);
+        back_cfg[blocktable[objects[last_instr + 1].name]].push_back(i);
       }
     }
   }
-
-  /*
-  int counter = 0;
-  for (std::vector<int> &row : cfg) {
-    std::cout << counter << ": [";
-    for (int &item : row) {
-      std::cout << " " << item << " ";
-    }
-    std::cout << "]\n";
-    counter++;
-  }
-  */
   return 0;
 }
 
@@ -133,11 +185,11 @@ int BrilProgram::markDeadBlocksPass() {
 
   // other blocks are alive if they can be transitioned into
   std::vector<bool> alive(blocks.size(), false);
-  for (int i = 0; i < cfg.size(); i++) {
+  for (int i = 0; i < dce_cfg.size(); i++) {
     // dead blocks can't make subsequent blocks alive
     if (!(blocks[i].flags & BRIL_DEAD)) {
-      for (int j = 0; j < cfg[i].size(); j++) {
-        alive[cfg[i][j]] = true;
+      for (int j = 0; j < dce_cfg[i].size(); j++) {
+        alive[dce_cfg[i][j]] = true;
       }
     }
   }
@@ -157,8 +209,8 @@ int BrilProgram::markDeadBlocksPass() {
 }
 
 int BrilProgram::markDeadBlocks() {
-  if (cfg.empty())
-    getCFG();
+  if (dce_cfg.empty())
+    getDceCFG();
   int prev_dead_code = -1;
   int total_dead_code = 0;
   int tmp = 0;
@@ -234,7 +286,7 @@ int BrilProgram::eliminateDeadCode() {
   }
   objects = new_objects;
   blocks.clear();
-  cfg.clear();
+  dce_cfg.clear();
   curr_program = nullptr;
   return 0;
 }
@@ -479,21 +531,101 @@ int BrilProgram::local_value_numbering() {
   return 0;
 }
 
+// DATA FLOW
+void BrilProgram::df_merge(int i) {
+  // for each basic block b that merges into blocks[i]
+  // in[i] += out[b]
+  in[i].clear();
+  for (int b : back_cfg[i]) {
+    in[i].insert(out[b].begin(), out[b].end());
+  }
+}
+
+// return true if out[i] changed
+bool BrilProgram::df_transfer(int bdx) {
+  std::set<int> defs;
+  for (int instr = blocks[bdx].start;
+       instr < blocks[bdx].start + blocks[bdx].length; instr++) {
+    if (objects[instr].dest == 0)
+      continue;
+
+    // we are defining a variable
+    defs.insert(instr);
+
+    // kill if has same name as any in IN
+    for (auto itr = in[bdx].begin(); itr != in[bdx].end();) {
+      if (objects[instr].dest == objects[*itr].dest) {
+        itr = in[bdx].erase(itr);
+      } else {
+        ++itr;
+      }
+    }
+  }
+  std::set<int> copy = out[bdx];
+  // out = defs + (in - kill)
+  out[bdx].clear();
+  out[bdx].insert(defs.begin(), defs.end());
+  out[bdx].insert(in[bdx].begin(), in[bdx].end());
+  return copy != out[bdx];
+}
+
+void BrilProgram::data_flow_analysis() {
+  if (cfg.empty())
+    getCFG();
+
+  for (BrilFunction &fn : functions) {
+    int n = blocks.size();
+    out = std::vector<std::set<int>>(n, std::set<int>());
+    in = std::vector<std::set<int>>(n, std::set<int>());
+    df_rename = std::vector<int>(objects.size(), 0);
+    for (int i = objects[fn.idx].instr0();
+         i < objects[fn.idx].instr0() + objects[fn.idx].num_instrs; i++) {
+      if (objects[i].op == BRIL_FUNC || objects[i].op == BRIL_ARG ||
+          objects[i].op == BRIL_LABEL) {
+        continue;
+      }
+
+      if (objects[i].dest) {
+        df_rename[i] = uniqueRename(*this, objects[i].dest);
+      }
+    }
+
+    std::queue<int> worklist;
+    // init worklist with all blocks
+    for (int i = fn.entry; i < fn.entry + fn.length; i++) {
+      worklist.push(i);
+    }
+
+    while (!worklist.empty()) {
+      int b = worklist.front();
+      worklist.pop();
+      df_merge(b);
+      if (df_transfer(b)) {
+        for (int v : cfg[b]) {
+          worklist.push(v);
+        }
+      }
+    }
+
+    for (int i = fn.entry; i < fn.entry + fn.length; i++) {
+      std::cout << stringtable.getString(blocks[i].name) << '\n';
+      for (int index : out[i]) {
+        std::cout << '\t' << stringtable.getString(df_rename[index]) << '\n';
+      }
+      std::cout << '\n';
+    }
+  }
+}
+
 int BrilProgram::optimize() {
+  data_flow_analysis();
   local_value_numbering();
   int tmp = 1;
   while (tmp) {
     tmp = 0;
-    std::cout << "START\n";
     tmp += markUnusedVariables();
-    curr_program = this;
-    printBlocks();
     tmp += markUnusedDefinitions();
-    curr_program = this;
-    printBlocks();
     tmp += markDeadBlocks();
-    curr_program = this;
-    printBlocks();
   }
   eliminateDeadCode();
   curr_program = nullptr;
