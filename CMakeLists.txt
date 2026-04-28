@@ -68,3 +68,6 @@ BALEEN_TEST(dataflow)
 add_executable(stringtable_tester tests/stringtable_tester.cpp)
 target_link_libraries(stringtable_tester baleen)
 add_test(NAME stringtable COMMAND stringtable_tester)
+
+add_executable(brilopt src/brilopt.cpp)
+target_link_libraries(brilopt baleen)
