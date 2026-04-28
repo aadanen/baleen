@@ -15,6 +15,7 @@ public:
   json dump2json();
   int optimize();
   void data_flow_analysis();
+  void find_dominators();
 
   StringTable stringtable;
   std::vector<BrilObject> objects;
@@ -30,11 +31,20 @@ public:
   // in[] and out[] will just hold original names and indicies but then we can
   // look them up the unique names later
   std::vector<int> df_rename;
+  // vector of sets per block
+  // set of block indices of the dominators of that block in the cfg
+  std::vector<std::set<int>> dom;
+  std::vector<std::set<int>> strict_dom;
+  std::vector<std::set<int>> strict_dom_by;
+  std::vector<std::vector<int>> dom_tree;
+  std::vector<std::vector<int>> dom_frontier;
 
 private:
   std::map<int, int> blocktable; // map stringtable entry to block index
   void printBlocks();
   void printFunctions();
+  void printDominator(std::vector<std::set<int>> &s);
+  void printDominator(std::vector<std::vector<int>> &v);
   int getBlocks();
   void getFunctions();
   int getCFG();

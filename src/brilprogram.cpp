@@ -617,7 +617,170 @@ void BrilProgram::data_flow_analysis() {
   }
 }
 
+// https://stackoverflow.com/questions/
+// 12875993/efficient-set-intersection-of-a-collection-of-sets-in-c
+std::vector<int> intersect(std::vector<std::set<int> const *> const &sets) {
+
+  std::vector<int> result; // only return this one, for NRVO to kick in
+
+  // 0. Check obvious cases
+  if (sets.empty()) {
+    return result;
+  }
+
+  if (sets.size() == 1) {
+    result.assign(sets.front()->begin(), sets.front()->end());
+    return result;
+  }
+
+  // 1. Merge first two sets in the result
+  std::set_intersection(sets[0]->begin(), sets[0]->end(), sets[1]->begin(),
+                        sets[1]->end(), std::back_inserter(result));
+
+  if (sets.size() == 2) {
+    return result;
+  }
+
+  // 2. Merge consecutive sets with result into buffer, then swap them around
+  //    so that the "result" is always in result at the end of the loop.
+
+  std::vector<int> buffer; // outside the loop so that we reuse its memory
+
+  for (size_t i = 2; i < sets.size(); ++i) {
+    buffer.clear();
+
+    std::set_intersection(result.begin(), result.end(), sets[i]->begin(),
+                          sets[i]->end(), std::back_inserter(buffer));
+
+    swap(result, buffer);
+  }
+
+  return result;
+}
+
+void BrilProgram::printDominator(std::vector<std::set<int>> &s) {
+  for (int i = 0; i < blocks.size(); ++i) {
+    std::cout << stringtable.getString(blocks[i].name) << '\n';
+    for (int b : s[i]) {
+      std::cout << '\t' << stringtable.getString(blocks[b].name) << '\n';
+    }
+    std::cout << '\n';
+  }
+}
+void BrilProgram::printDominator(std::vector<std::vector<int>> &s) {
+  for (int i = 0; i < blocks.size(); ++i) {
+    std::cout << stringtable.getString(blocks[i].name) << '\n';
+    for (int b : s[i]) {
+      std::cout << '\t' << stringtable.getString(blocks[b].name) << '\n';
+    }
+    std::cout << '\n';
+  }
+}
+
+void BrilProgram::find_dominators() {
+  if (cfg.empty())
+    getCFG();
+
+  dom = std::vector<std::set<int>>(blocks.size(), std::set<int>());
+  for (auto &s : dom) {
+    for (int i = 0; i < blocks.size(); ++i) {
+      s.insert(i);
+    }
+  }
+
+  bool done = false;
+  while (!done) {
+    done = true;
+    for (int i = 0; i < blocks.size(); ++i) {
+      std::vector<const std::set<int> *> pred_sets;
+      pred_sets.reserve(blocks.size());
+      for (int j : back_cfg[i]) {
+        pred_sets.push_back(&dom[j]);
+      }
+      std::vector<int> new_dom = intersect(pred_sets);
+      std::set<int> new_dom_set = std::set<int>(new_dom.begin(), new_dom.end());
+      new_dom_set.insert(i); // {vertex} u N(dom[p]) for p in preds
+      if (new_dom_set != dom[i])
+        done = false;
+      if (!done)
+        dom[i] = new_dom_set;
+    }
+  }
+
+  strict_dom = std::vector<std::set<int>>(blocks.size(), std::set<int>());
+  for (int i = 0; i < blocks.size(); i++) {
+    strict_dom[i] = dom[i];
+    strict_dom[i].erase(i);
+  }
+
+  // set of blocks strictly dominated by i
+  strict_dom_by = std::vector<std::set<int>>(blocks.size(), std::set<int>());
+  for (int i = 0; i < blocks.size(); i++) {
+    for (int j = 0; j < blocks.size(); j++) {
+      if (strict_dom[j].find(i) != strict_dom[j].end())
+        strict_dom_by[i].insert(j);
+    }
+  }
+
+  dom_tree = std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
+  for (int i = 0; i < blocks.size(); ++i) {
+    for (int j = 0; j < blocks.size(); ++j) {
+      // does j immediately dominate i
+      if (i == j)
+        continue;
+
+      // j doesn't dominate i
+      if (dom[i].find(j) == dom[i].end())
+        continue;
+
+      std::vector<int> intersect;
+      std::set_intersection(strict_dom[i].begin(), strict_dom[i].end(),
+                            strict_dom_by[j].begin(), strict_dom_by[j].end(),
+                            std::back_inserter(intersect));
+
+      // j immediately dominates i, so i is a child in the dom_tree
+      if (intersect.empty())
+        dom_tree[j].push_back(i);
+    }
+  }
+
+  dom_frontier =
+      std::vector<std::vector<int>>(blocks.size(), std::vector<int>());
+  for (int A = 0; A < blocks.size(); A++) {
+    for (int B = 0; B < blocks.size(); B++) {
+      if (A == B)
+        continue;
+
+      // if A strictly dominates B, its not on the frontier
+      if (strict_dom[B].find(A) != strict_dom[B].end())
+        continue;
+
+      // win if A strictly dominates a predecessor of B
+      bool success = false;
+      for (int pred : back_cfg[B]) {
+        if (strict_dom_by[A].find(pred) != strict_dom_by[A].end()) {
+          success = true;
+          break;
+        }
+      }
+      if (success)
+        dom_frontier[A].push_back(B);
+    }
+  }
+  std::cout << "STRICT DOM\n";
+  printDominator(strict_dom);
+  std::cout << "STRICT DOM BY\n";
+  printDominator(strict_dom_by);
+  std::cout << "DOM TREE\n";
+  printDominator(dom_tree);
+  std::cout << "DOM FRONTIER\n";
+  printDominator(dom_frontier);
+}
+
 int BrilProgram::optimize() {
+  find_dominators();
+  curr_program = this;
+  printBlocks();
   data_flow_analysis();
   local_value_numbering();
   int tmp = 1;

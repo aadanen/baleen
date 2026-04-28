@@ -11,7 +11,8 @@ std::map<std::string, BrilOp> optable = {
     {"print", BRIL_PRINT},   {"const", BRIL_CONST}, {"alloc", BRIL_ALLOC},
     {"free", BRIL_FREE},     {"load", BRIL_LOAD},   {"store", BRIL_STORE},
     {"ptradd", BRIL_PTRADD}, {"func", BRIL_FUNC},   {"arg", BRIL_ARG},
-    {"label", BRIL_LABEL},
+    {"label", BRIL_LABEL},   {"set", BRIL_SET},     {"get", BRIL_GET},
+    {"undef", BRIL_UNDEF},
 };
 
 std::map<BrilOp, std::string> opstringtable = {
@@ -24,7 +25,8 @@ std::map<BrilOp, std::string> opstringtable = {
     {BRIL_PRINT, "print"},   {BRIL_CONST, "const"}, {BRIL_ALLOC, "alloc"},
     {BRIL_FREE, "free"},     {BRIL_LOAD, "load"},   {BRIL_STORE, "store"},
     {BRIL_PTRADD, "ptradd"}, {BRIL_FUNC, "func"},   {BRIL_ARG, "arg"},
-    {BRIL_LABEL, "label"},
+    {BRIL_LABEL, "label"},   {BRIL_SET, "set"},     {BRIL_GET, "get"},
+    {BRIL_UNDEF, "undef"},
 };
 
 std::string op2string(BrilOp op) {

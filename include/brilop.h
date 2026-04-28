@@ -31,6 +31,9 @@ enum BrilOp {
     BRIL_LOAD,
     BRIL_STORE,
     BRIL_PTRADD,
+    BRIL_GET,
+    BRIL_SET,
+    BRIL_UNDEF,
     // not real opcodes
     BRIL_LABEL,
     BRIL_FUNC,
@@ -39,6 +42,7 @@ enum BrilOp {
 
 std::string op2string(BrilOp op);
 BrilOp string2op(const std::string &str);
+
 bool isAssociative(BrilOp op);
 
 #endif /* BRIL_OP_H_ */
