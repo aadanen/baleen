@@ -4,9 +4,9 @@ Baleen is a library for optimizing [bril](https://capra.cs.cornell.edu/bril/intr
 ## Features ##
 - [x] serialize and deserialize bril programs
 - [x] dead code elimination
-- [x] local value numebering
-    - [x] copy propogation
-    - [x] constant propogation
+- [x] local value numbering
+    - [x] copy propagation
+    - [x] constant propagation
 - [x] data flow analysis 
     - [x] "reaching" analysis
 - [ ] global analysis and optimization
