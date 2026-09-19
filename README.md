@@ -13,7 +13,7 @@ Baleen is a library for optimizing [bril](https://capra.cs.cornell.edu/bril/intr
 - [ ] and more...
 
 ## Building ##
-Baleen uses cmake. I think incorporating Baleen into your own codebase should be as simple as cloning the source tree and calling add_subdirectory(). See tests/test_runner.cpp for some basic usage.
+Baleen uses cmake. Incorporating Baleen into your own codebase should be as simple as cloning the source tree and calling add_subdirectory(). See tests/test_runner.cpp for some basic usage of the library.
 ```
 mkdir build
 cmake -B build
