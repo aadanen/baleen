@@ -28,9 +28,7 @@ A command line utility that takes bril on stdin and prints optimized bril to std
 ```
 
 ## Testing ##
-Baleen uses ctest. There are a variety of bril programs in test/bril/ which are automatically run and I check that their output is the same before and after optimization. 
-- this is not a very robust test suite
-- this was my first time writing compiler optimizations so you shouldn't take their quality too seriously
+There are a variety of bril programs in test/bril/ which are automatically run. I check that their output is the same before and after optimization. 
 ```
 cd build
 make test
