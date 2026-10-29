@@ -2,9 +2,9 @@
 #include <brilprogram.h>
 #include <iostream>
 
-BrilBasicBlock::BrilBasicBlock() : name(0), start(0), length(0) {}
+BrilBasicBlock::BrilBasicBlock() : name(0), start(0), length(0), func(0) {}
 BrilBasicBlock::BrilBasicBlock(int name, int start, int length)
-    : name(name), start(start), length(length) {
+    : name(name), start(start), length(length), func(0) {
     flags = 0;
 }
 

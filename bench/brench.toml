@@ -1,0 +1,17 @@
+# brench config comparing the reference interpreter with and without baleen
+# BRILOPT is set by run.sh to the brilopt binary under test
+extract = 'total_dyn_inst: (\d+)'
+timeout = 300
+
+[runs.baseline]
+pipeline = [
+    "bril2json",
+    "brili -p {args}",
+]
+
+[runs.baleen]
+pipeline = [
+    "bril2json",
+    "\"$BRILOPT\"",
+    "brili -p {args}",
+]

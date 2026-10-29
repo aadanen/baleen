@@ -7,6 +7,8 @@ enum BrilPrimitive {
     BRIL_VOID = 0,
     BRIL_INT,
     BRIL_BOOL,
+    BRIL_FLOAT,
+    BRIL_CHAR,
 };
 
 BrilPrimitive string2primitive(std::string str);

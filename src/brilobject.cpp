@@ -78,7 +78,7 @@ int BrilObject::init(json data, BrilOp op) {
         if (data.contains("type"))
             parseBrilType(&self->type, data);
         if (data.contains("value")) {
-            self->value = data["value"];
+            self->value = curr_program->lookupConstant(data["value"]);
         }
 
         // extract arguments
@@ -86,6 +86,7 @@ int BrilObject::init(json data, BrilOp op) {
         int *p;
         int i;
         switch (self->op) {
+        case (BRIL_PRINT):
         case (BRIL_CALL):
             if (data.contains("args") && !data["args"].empty()) {
                 self->num_args = data["args"].size();
@@ -95,6 +96,8 @@ int BrilObject::init(json data, BrilOp op) {
                         curr_program->stringtable.lookup(arg));
                 }
             }
+            if (self->op == BRIL_PRINT)
+                break;
             if (data["funcs"].size() > 1) {
                 std::cerr << "Error: more than 1 func in call??\n";
                 exit(1);
@@ -222,10 +225,7 @@ json BrilObject::dump2json() {
         if (dest)
             result["dest"] = curr_program->stringtable.getString(dest);
         if (op == BRIL_CONST) {
-            if (type.primitive == BRIL_BOOL)
-                result["value"] = (bool)value;
-            else
-                result["value"] = value;
+            result["value"] = curr_program->constants[value];
         }
         std::vector<json> args;
         std::vector<json> labels;
@@ -238,6 +238,11 @@ json BrilObject::dump2json() {
             }
             funcs.push_back(curr_program->stringtable.getString(func));
             result["funcs"] = funcs;
+            break;
+        case (BRIL_PRINT):
+            if (num_args) {
+                result["args"] = serializeInstrVargs(arg0, num_args);
+            }
             break;
         case (BRIL_BR):
             args.push_back(curr_program->stringtable.getString(arg0));
@@ -285,6 +290,26 @@ int BrilObject::instr0() {
         exit(1);
     }
     return arg0 + num_args;
+}
+
+int *BrilObject::args() {
+    if (op == BRIL_CALL || op == BRIL_PRINT)
+        return &curr_program->var_args[arg0];
+    return &arg0;
+}
+
+int BrilObject::numArgs() {
+    switch (op) {
+    case (BRIL_BR):
+        return 1; // the condition, arg1 and arg2 are labels
+    case (BRIL_JMP):
+    case (BRIL_LABEL):
+    case (BRIL_FUNC):
+    case (BRIL_ARG):
+        return 0;
+    default:
+        return num_args;
+    };
 }
 
 bool BrilObject::operator==(const BrilObject &rhs) const {

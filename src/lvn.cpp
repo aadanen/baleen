@@ -8,8 +8,13 @@ bool LVN::contains(int name) const {
 int LVN::insert(BrilObject instr) {
     if (contains(instr))
         exit(1);
-    int vn = instr2num.size();
+    int vn = next_vn++;
     instr2num[instr] = vn;
+    num2instr[vn] = instr;
+    return vn;
+}
+int LVN::insertOpaque(BrilObject instr) {
+    int vn = next_vn++;
     num2instr[vn] = instr;
     return vn;
 }

@@ -34,6 +34,22 @@ enum BrilOp {
     BRIL_GET,
     BRIL_SET,
     BRIL_UNDEF,
+    BRIL_FADD,
+    BRIL_FSUB,
+    BRIL_FMUL,
+    BRIL_FDIV,
+    BRIL_FEQ,
+    BRIL_FLT,
+    BRIL_FGT,
+    BRIL_FLE,
+    BRIL_FGE,
+    BRIL_CEQ,
+    BRIL_CLT,
+    BRIL_CGT,
+    BRIL_CLE,
+    BRIL_CGE,
+    BRIL_CHAR2INT,
+    BRIL_INT2CHAR,
     // not real opcodes
     BRIL_LABEL,
     BRIL_FUNC,
@@ -44,5 +60,9 @@ std::string op2string(BrilOp op);
 BrilOp string2op(const std::string &str);
 
 bool isAssociative(BrilOp op);
+
+// pure instructions only compute a value from their arguments, so they are
+// safe to number, reuse, and delete when their result is unused
+bool isPure(BrilOp op);
 
 #endif /* BRIL_OP_H_ */

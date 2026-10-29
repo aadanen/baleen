@@ -6,12 +6,16 @@ std::map<std::string, BrilPrimitive> primtable = {
     {"void", BRIL_VOID},
     {"int", BRIL_INT},
     {"bool", BRIL_BOOL},
+    {"float", BRIL_FLOAT},
+    {"char", BRIL_CHAR},
 };
 
 std::map<BrilPrimitive, std::string> primstringtable = {
     {BRIL_VOID, "void"},
     {BRIL_INT, "int"},
     {BRIL_BOOL, "bool"},
+    {BRIL_FLOAT, "float"},
+    {BRIL_CHAR, "char"},
 };
 
 BrilPrimitive string2primitive(std::string str) {

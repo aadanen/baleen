@@ -20,6 +20,10 @@ public:
   StringTable stringtable;
   std::vector<BrilObject> objects;
   std::vector<int> var_args;
+  // const values are stored as an index into this table so that 64 bit
+  // ints, floats, and chars all fit in BrilObject::value
+  std::vector<json> constants;
+  int lookupConstant(const json &value);
   std::vector<BrilBasicBlock> blocks;
   std::vector<BrilFunction> functions;
   std::vector<std::vector<int>> dce_cfg;
@@ -40,7 +44,11 @@ public:
   std::vector<std::vector<int>> dom_frontier;
 
 private:
-  std::map<int, int> blocktable; // map stringtable entry to block index
+  std::map<std::string, int> consttable; // map dumped const to constants[]
+  // map (function object index, stringtable entry) to block index
+  // labels are scoped to their function, functions use index 0
+  std::map<std::pair<int, int>, int> blocktable;
+  int lookupBlock(int bdx, int name);
   void printBlocks();
   void printFunctions();
   void printDominator(std::vector<std::set<int>> &s);

@@ -47,6 +47,9 @@ struct BrilObject {
     bool operator==(const BrilObject &rhs) const;
     bool operator!=(const BrilObject &rhs) const;
     int instr0();
+    // variable arguments of an instruction, labels and funcs excluded
+    int *args();
+    int numArgs();
 };
 
 struct BrilObjectHasher {

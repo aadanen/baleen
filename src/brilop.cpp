@@ -12,7 +12,12 @@ std::map<std::string, BrilOp> optable = {
     {"free", BRIL_FREE},     {"load", BRIL_LOAD},   {"store", BRIL_STORE},
     {"ptradd", BRIL_PTRADD}, {"func", BRIL_FUNC},   {"arg", BRIL_ARG},
     {"label", BRIL_LABEL},   {"set", BRIL_SET},     {"get", BRIL_GET},
-    {"undef", BRIL_UNDEF},
+    {"undef", BRIL_UNDEF},   {"fadd", BRIL_FADD},   {"fsub", BRIL_FSUB},
+    {"fmul", BRIL_FMUL},     {"fdiv", BRIL_FDIV},   {"feq", BRIL_FEQ},
+    {"flt", BRIL_FLT},       {"fgt", BRIL_FGT},     {"fle", BRIL_FLE},
+    {"fge", BRIL_FGE},       {"ceq", BRIL_CEQ},     {"clt", BRIL_CLT},
+    {"cgt", BRIL_CGT},       {"cle", BRIL_CLE},     {"cge", BRIL_CGE},
+    {"char2int", BRIL_CHAR2INT}, {"int2char", BRIL_INT2CHAR},
 };
 
 std::map<BrilOp, std::string> opstringtable = {
@@ -26,7 +31,12 @@ std::map<BrilOp, std::string> opstringtable = {
     {BRIL_FREE, "free"},     {BRIL_LOAD, "load"},   {BRIL_STORE, "store"},
     {BRIL_PTRADD, "ptradd"}, {BRIL_FUNC, "func"},   {BRIL_ARG, "arg"},
     {BRIL_LABEL, "label"},   {BRIL_SET, "set"},     {BRIL_GET, "get"},
-    {BRIL_UNDEF, "undef"},
+    {BRIL_UNDEF, "undef"},   {BRIL_FADD, "fadd"},   {BRIL_FSUB, "fsub"},
+    {BRIL_FMUL, "fmul"},     {BRIL_FDIV, "fdiv"},   {BRIL_FEQ, "feq"},
+    {BRIL_FLT, "flt"},       {BRIL_FGT, "fgt"},     {BRIL_FLE, "fle"},
+    {BRIL_FGE, "fge"},       {BRIL_CEQ, "ceq"},     {BRIL_CLT, "clt"},
+    {BRIL_CGT, "cgt"},       {BRIL_CLE, "cle"},     {BRIL_CGE, "cge"},
+    {BRIL_CHAR2INT, "char2int"}, {BRIL_INT2CHAR, "int2char"},
 };
 
 std::string op2string(BrilOp op) {
@@ -55,5 +65,30 @@ bool isAssociative(BrilOp op) {
         return true;
     default:
         return false;
+    };
+}
+
+bool isPure(BrilOp op) {
+    switch (op) {
+    case BRIL_CALL:
+    case BRIL_PRINT:
+    case BRIL_ALLOC:
+    case BRIL_FREE:
+    case BRIL_LOAD:
+    case BRIL_STORE:
+    case BRIL_RET:
+    case BRIL_JMP:
+    case BRIL_BR:
+    case BRIL_NOP:
+    case BRIL_GET:
+    case BRIL_SET:
+    case BRIL_UNDEF:
+    case BRIL_LABEL:
+    case BRIL_FUNC:
+    case BRIL_ARG:
+    case BRIL_NONE:
+        return false;
+    default:
+        return true;
     };
 }

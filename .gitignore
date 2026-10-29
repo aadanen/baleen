@@ -6,3 +6,4 @@ tests/bril/*.txt
 CMakeSettings.json
 *.swp
 *.swo
+bench/results

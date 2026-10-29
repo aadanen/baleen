@@ -23,10 +23,14 @@ private:
   // the lvn "environment" that changes over time
   std::map<int, int> var2num;
 
+  int next_vn = 0;
+
 public:
   bool contains(const BrilObject &instr) const;
   bool contains(int name) const;
   int insert(BrilObject instr);
+  // number a value that must never be reused, like the result of a call
+  int insertOpaque(BrilObject instr);
   void updateEnv(int name, int vn);
   int lookupVN(BrilObject instr) const;
   int lookupVN(int name) const;

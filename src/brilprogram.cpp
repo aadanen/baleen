@@ -12,12 +12,27 @@ BrilProgram::BrilProgram(json program) {
   objects = std::vector<BrilObject>();
   objects.emplace_back(); // the objects array is one indexed
   stringtable = StringTable();
+  constants.emplace_back(); // the constants table is also one indexed
   for (json func : program["functions"]) {
     int i = curr_program->objects.size();
     curr_program->objects.push_back(BrilObject());
     curr_program->objects[i].init(func, BRIL_FUNC);
   }
   curr_program = nullptr;
+}
+
+int BrilProgram::lookupConstant(const json &value) {
+  std::string key = value.dump();
+  auto it = consttable.find(key);
+  if (it != consttable.end())
+    return it->second;
+  constants.push_back(value);
+  consttable[key] = constants.size() - 1;
+  return constants.size() - 1;
+}
+
+int BrilProgram::lookupBlock(int bdx, int name) {
+  return blocktable[{blocks[bdx].func, name}];
 }
 
 json BrilProgram::dump2json() {
@@ -76,10 +91,12 @@ void BrilProgram::getFunctions() {
 }
 
 int BrilProgram::getBlocks() {
+  BrilProgram *prev_program = curr_program;
   curr_program = this;
   int bname = 0;
   int bstart = 0;
   int blength = 0;
+  int fdx = 0;
   for (int index = 1; index < objects.size(); index++) {
     if (objects[index].op == BRIL_ARG)
       continue;
@@ -87,14 +104,18 @@ int BrilProgram::getBlocks() {
     if (objects[index].isfunc() || objects[index].islabel()) {
       if (bstart > 0) {
         blocks.emplace_back(bname, bstart, blength);
+        blocks.back().func = fdx;
       }
 
       bname = objects[index].name;
-      blocktable[bname] = blocks.size();
-      if (objects[index].isfunc())
+      if (objects[index].isfunc()) {
+        fdx = index;
+        blocktable[{0, bname}] = blocks.size();
         bstart = objects[index].arg0 + objects[index].num_args;
-      else
+      } else {
+        blocktable[{fdx, bname}] = blocks.size();
         bstart = index + 1;
+      }
       blength = 0;
     } else {
       if (bstart == 0) {
@@ -103,17 +124,20 @@ int BrilProgram::getBlocks() {
       blength++;
       if (objects[index].isterminator()) {
         blocks.emplace_back(bname, bstart, blength);
+        blocks.back().func = fdx;
         bname = 0;
         bstart = 0;
         blength = 0;
       }
     }
   }
-  if (bstart > 0)
+  if (bstart > 0) {
     this->blocks.emplace_back(bname, bstart, blength);
+    blocks.back().func = fdx;
+  }
 
   getFunctions();
-  curr_program = nullptr;
+  curr_program = prev_program;
   return 0;
 }
 
@@ -126,22 +150,22 @@ int BrilProgram::getDceCFG() {
     // for blocks we depend on via function calls
     for (int j = blocks[i].start; j < blocks[i].start + blocks[i].length; j++) {
       if (objects[j].op == BRIL_CALL && !(objects[j].flags & BRIL_DEAD)) {
-        dce_cfg[i].push_back(blocktable[objects[j].func]);
+        dce_cfg[i].push_back(blocktable[{0, objects[j].func}]);
       }
     }
     // for branch at the end of the block
     int last_instr = blocks[i].start + blocks[i].length - 1;
     if (objects[last_instr].isterminator()) {
       if (objects[last_instr].op == BRIL_JMP) {
-        dce_cfg[i].push_back(blocktable[objects[last_instr].arg0]);
+        dce_cfg[i].push_back(lookupBlock(i, objects[last_instr].arg0));
       } else if (objects[last_instr].op == BRIL_BR) {
-        dce_cfg[i].push_back(blocktable[objects[last_instr].arg1]);
-        dce_cfg[i].push_back(blocktable[objects[last_instr].arg2]);
+        dce_cfg[i].push_back(lookupBlock(i, objects[last_instr].arg1));
+        dce_cfg[i].push_back(lookupBlock(i, objects[last_instr].arg2));
       } // else its a ret instruction and so control goes to some caller
     } else {
       if (last_instr + 1 < objects.size() &&
           objects[last_instr + 1].op == BRIL_LABEL) {
-        dce_cfg[i].push_back(blocktable[objects[last_instr + 1].name]);
+        dce_cfg[i].push_back(lookupBlock(i, objects[last_instr + 1].name));
       }
     }
   }
@@ -159,19 +183,19 @@ int BrilProgram::getCFG() {
     int last_instr = blocks[i].start + blocks[i].length - 1;
     if (objects[last_instr].isterminator()) {
       if (objects[last_instr].op == BRIL_JMP) {
-        cfg[i].push_back(blocktable[objects[last_instr].arg0]);
-        back_cfg[blocktable[objects[last_instr].arg0]].push_back(i);
+        cfg[i].push_back(lookupBlock(i, objects[last_instr].arg0));
+        back_cfg[lookupBlock(i, objects[last_instr].arg0)].push_back(i);
       } else if (objects[last_instr].op == BRIL_BR) {
-        cfg[i].push_back(blocktable[objects[last_instr].arg1]);
-        cfg[i].push_back(blocktable[objects[last_instr].arg2]);
-        back_cfg[blocktable[objects[last_instr].arg1]].push_back(i);
-        back_cfg[blocktable[objects[last_instr].arg2]].push_back(i);
+        cfg[i].push_back(lookupBlock(i, objects[last_instr].arg1));
+        cfg[i].push_back(lookupBlock(i, objects[last_instr].arg2));
+        back_cfg[lookupBlock(i, objects[last_instr].arg1)].push_back(i);
+        back_cfg[lookupBlock(i, objects[last_instr].arg2)].push_back(i);
       } // else its a ret instruction and so control goes to some caller
     } else {
       if (last_instr + 1 < objects.size() &&
           objects[last_instr + 1].op == BRIL_LABEL) {
-        cfg[i].push_back(blocktable[objects[last_instr + 1].name]);
-        back_cfg[blocktable[objects[last_instr + 1].name]].push_back(i);
+        cfg[i].push_back(lookupBlock(i, objects[last_instr + 1].name));
+        back_cfg[lookupBlock(i, objects[last_instr + 1].name)].push_back(i);
       }
     }
   }
@@ -305,13 +329,8 @@ int BrilProgram::markUnusedVariablesPass() {
       if (objects[i].op == BRIL_LABEL || (objects[i].flags & BRIL_DEAD))
         continue;
 
-      int *p;
-      if (objects[i].op == BRIL_CALL)
-        p = &var_args[objects[i].arg0];
-      else
-        p = &objects[i].arg0;
-
-      for (int j = 0; j < objects[i].num_args; j++) {
+      int *p = objects[i].args();
+      for (int j = 0; j < objects[i].numArgs(); j++) {
         used.insert(p[j]);
       }
     }
@@ -322,7 +341,9 @@ int BrilProgram::markUnusedVariablesPass() {
       if (objects[i].op == BRIL_LABEL)
         continue;
 
-      if (objects[i].dest && (used.find(objects[i].dest) == used.end()) &&
+      // calls have side effects even if their result is unused
+      if (objects[i].dest && objects[i].op != BRIL_CALL &&
+          (used.find(objects[i].dest) == used.end()) &&
           !(objects[i].flags & BRIL_DEAD)) {
         objects[i].flags |= BRIL_DEAD;
         counter++;
@@ -353,19 +374,16 @@ int BrilProgram::markUnusedDefinitionsPass() {
       if (objects[i].op == BRIL_LABEL || (objects[i].flags & BRIL_DEAD))
         continue;
 
-      int *p;
-      if (objects[i].op == BRIL_CALL)
-        p = &var_args[objects[i].arg0];
-      else
-        p = &objects[i].arg0;
-
       // remove uses
-      for (int j = 0; j < objects[i].num_args; j++) {
+      int *p = objects[i].args();
+      for (int j = 0; j < objects[i].numArgs(); j++) {
         last_def.erase(p[j]);
       }
 
       // register definitions
-      if (last_def.find(objects[i].dest) != last_def.end()) {
+      if (objects[i].dest &&
+          last_def.find(objects[i].dest) != last_def.end() &&
+          objects[last_def[objects[i].dest]].op != BRIL_CALL) {
         // if there was a prev definition, mark as dead
         objects[last_def[objects[i].dest]].flags |= BRIL_DEAD;
         counter++;
@@ -388,6 +406,7 @@ int BrilProgram::markUnusedDefinitions() {
 }
 
 // also tries to do copy and constant propogation
+// obj is an lvn table entry, its dest is the variable that holds its value
 BrilObject lvn_copyof(int name, const BrilObject *obj) {
   BrilObject result = BrilObject();
   result.dest = name;
@@ -397,10 +416,6 @@ BrilObject lvn_copyof(int name, const BrilObject *obj) {
     result.op = BRIL_CONST;
     result.value = obj->value;
     result.num_args = 0;
-  } else if (obj->op == BRIL_ID) {
-    result.op = BRIL_ID;
-    result.arg0 = obj->arg0;
-    result.num_args = 1;
   } else {
     result.op = BRIL_ID;
     result.arg0 = obj->dest;
@@ -410,8 +425,8 @@ BrilObject lvn_copyof(int name, const BrilObject *obj) {
 }
 
 void lvn_renameArgs(BrilObject &obj, std::map<int, int> &rename) {
-  int *p = &obj.arg0;
-  for (int j = 0; j < obj.num_args; j++) {
+  int *p = obj.args();
+  for (int j = 0; j < obj.numArgs(); j++) {
     if (rename.find(p[j]) != rename.end()) {
       p[j] = rename[p[j]];
     }
@@ -424,22 +439,6 @@ int BrilProgram::local_value_numbering() {
 
   for (BrilBasicBlock &b : blocks) {
     LVN lvn = LVN();
-    int fdx = b.start;
-    while (fdx >= 0) { // register the current function arguments
-      if (objects[fdx].op == BRIL_FUNC)
-        break;
-
-      if (objects[fdx].op == BRIL_ARG) {
-        BrilObject obj = BrilObject();
-        obj.op = BRIL_ID;
-        obj.num_args = 1;
-        obj.name = objects[fdx].name;
-        obj.arg0 = objects[fdx].name; // negative cuz its not a vn
-        int vn = lvn.insert(obj);
-        lvn.updateEnv(objects[fdx].name, vn);
-      }
-      fdx--;
-    }
     // precompute the last definition of each variable
     std::map<int, int> last_def;
     std::map<int, int> rename;
@@ -450,6 +449,9 @@ int BrilProgram::local_value_numbering() {
     }
 
     for (int i = b.start; i < b.start + b.length; i++) {
+      // args refer to the value from before this instruction's definition
+      lvn_renameArgs(objects[i], rename);
+
       if (objects[i].dest) {
         // erase renamings on redefinition
         if (rename.find(objects[i].dest) != rename.end())
@@ -469,63 +471,53 @@ int BrilProgram::local_value_numbering() {
         }
       }
 
-      lvn_renameArgs(objects[i], rename);
-
-      // can't optimize calls or put them in the lvn table
-      if (objects[i].op == BRIL_CALL) {
+      // side effects can't be numbered, but their args can still use the
+      // variable that holds the canonical value
+      if (!isPure(objects[i].op)) {
+        int *p = objects[i].args();
+        for (int j = 0; j < objects[i].numArgs(); j++) {
+          int arg_vn = lvn.lookupVN(p[j]);
+          if (arg_vn >= 0)
+            p[j] = lvn.lookupInstr(arg_vn)->dest;
+        }
+        if (objects[i].dest)
+          lvn.updateEnv(objects[i].dest, lvn.insertOpaque(objects[i]));
         continue;
       }
 
       // lvn table instr has value numbers instead of variable names
       BrilObject obj = objects[i];
       int *p = &obj.arg0;
-      int original_arg0 = p[0];
       for (int j = 0; j < obj.num_args; j++) {
         int arg_vn = lvn.lookupVN(p[j]);
         if (arg_vn >= 0) {
           p[j] = arg_vn;
         } else {
-          if (rename.find(p[j]) != rename.end()) {
-            p[j] = rename[p[j]];
-          }
           p[j] = -p[j]; // if not found, just -name for reconstruction later
         }
       }
 
-      int vn = lvn.lookupVN(obj);
-      if (vn >= 0) {
-        if (objects[i].dest)
-          objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
+      int vn;
+      if (obj.op == BRIL_ID && p[0] >= 0) { // copies aren't generating values
+        vn = p[0];
+        objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
+      } else if ((vn = lvn.lookupVN(obj)) >= 0) {
+        objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
       } else {
-        if (objects[i].op == BRIL_ID) { // copies aren't generating values
-          vn = lvn.lookupVN(original_arg0);
-          objects[i] = lvn_copyof(objects[i].dest, lvn.lookupInstr(vn));
-        } else {
-          // insert a new row into the lvn table
-          vn = lvn.insert(obj);
+        // insert a new row into the lvn table
+        vn = lvn.insert(obj);
 
-          // modify the current instruction to use the arguments from the vn
-          int *p = &objects[i].arg0;
-          int *q = &obj.arg0;
-          const BrilObject *arg_instr;
-          for (int j = 0; j < objects[i].num_args; j++) {
-            if (q[j] >= 0) {
-              arg_instr = lvn.lookupInstr(q[j]);
-              if (arg_instr && arg_instr->dest > 0) {
-                p[j] = arg_instr->dest; // lvn -> modified instr -> arg_vn ->
-                                        // arg_instr -> true name
-              } else {
-                std::cout << "error: lvn shouldn't be here i think LOL\n";
-                return -1;
-              }
-            } else { // its some unknown value that we -named earlier
-              p[j] = -q[j];
-            }
+        // modify the current instruction to use the arguments from the vn
+        int *q = &objects[i].arg0;
+        for (int j = 0; j < objects[i].num_args; j++) {
+          if (p[j] >= 0) {
+            q[j] = lvn.lookupInstr(p[j])->dest; // arg_vn -> true name
+          } else { // its some unknown value that we -named earlier
+            q[j] = -p[j];
           }
         }
       }
-      if (objects[i].dest)
-        lvn.updateEnv(objects[i].dest, vn);
+      lvn.updateEnv(objects[i].dest, vn);
     }
   }
   return 0;
@@ -778,10 +770,7 @@ void BrilProgram::find_dominators() {
 }
 
 int BrilProgram::optimize() {
-  find_dominators();
   curr_program = this;
-  printBlocks();
-  data_flow_analysis();
   local_value_numbering();
   int tmp = 1;
   while (tmp) {
